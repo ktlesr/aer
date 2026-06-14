@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
 import { RiskBadge } from "@/components/risk-badge";
-import { cn } from "@/lib/utils";
 import { formatCost, formatDateTime, formatEventType } from "@/lib/format";
 
 export interface TimelineEvent {
@@ -30,30 +29,41 @@ function summarize(value: unknown): string {
 
 function EventRow({ event, index }: { event: TimelineEvent; index: number }) {
   const [open, setOpen] = useState(false);
+  const redacted = event.redactionCount > 0;
   const hasPayload =
     (event.inputRedacted !== null && event.inputRedacted !== undefined) ||
     (event.outputRedacted !== null && event.outputRedacted !== undefined);
 
-  const nodeColor = event.redactionCount > 0 ? "bg-seal" : "bg-foreground/50";
-
   return (
-    <li
-      className="animate-rise relative pl-9"
-      style={{ animationDelay: `${index * 55}ms` }}
-    >
+    <li className="animate-rise relative pl-9" style={{ animationDelay: `${index * 55}ms` }}>
       {/* node on the spine */}
-      <span className="absolute left-0 top-1 flex size-[1.05rem] -translate-x-1/2 items-center justify-center rounded-full border border-border bg-background">
-        <span className={cn("size-2 rounded-full", nodeColor)} />
+      <span
+        className="absolute left-0 top-2 flex size-[1.15rem] -translate-x-1/2 items-center justify-center rounded-full border bg-background"
+        style={{
+          borderColor: redacted ? "color-mix(in oklch, var(--seal) 45%, transparent)" : "var(--border)",
+        }}
+      >
+        <span
+          className="size-2 rounded-full"
+          style={{ background: redacted ? "var(--seal)" : "color-mix(in oklch, var(--foreground) 45%, transparent)" }}
+        />
       </span>
 
-      <div className="rounded-lg border border-border/70 bg-card px-4 py-3 transition-colors hover:border-border">
+      <div className="rounded-lg border border-border/70 bg-card px-4 py-3 transition-all duration-200 hover:border-border hover:shadow-[var(--shadow-soft)]">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <span className="eyebrow text-foreground/70">
+          <span className="eyebrow text-foreground/65">
             {String(event.seq).padStart(2, "0")} · {formatEventType(event.type)}
           </span>
           {event.riskLevel ? <RiskBadge risk={event.riskLevel} /> : null}
-          {event.redactionCount > 0 ? (
-            <span className="inline-flex items-center gap-1 rounded-full border border-seal/30 bg-seal/[0.06] px-2 py-0.5 font-mono text-[0.62rem] font-medium uppercase tracking-wider text-seal">
+          {redacted ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[0.6rem] font-medium uppercase tracking-wider"
+              style={{
+                color: "var(--seal)",
+                borderColor: "color-mix(in oklch, var(--seal) 32%, transparent)",
+                background: "color-mix(in oklch, var(--seal) 8%, transparent)",
+              }}
+            >
               <ShieldAlert className="size-3" />
               {event.redactionCount} redacted
             </span>
@@ -76,7 +86,7 @@ function EventRow({ event, index }: { event: TimelineEvent; index: number }) {
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
-              className="inline-flex items-center gap-1 font-mono text-[0.68rem] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+              className="inline-flex items-center gap-1 font-mono text-[0.66rem] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
             >
               {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
               {open ? "Hide" : "Show"} payloads · redacted
