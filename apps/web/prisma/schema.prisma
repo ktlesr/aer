@@ -1,7 +1,16 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Agent Evidence Recorder — Prisma schema.
+// Implements the 7 models in docs/DATA_MODEL.md. Security rules in docs/SECURITY.md:
+// - ApiKey stores keyHash only (never plaintext); prefix is a short non-secret label.
+// - RedactionFinding stores originalHash only (never the raw sensitive value).
+// - Every tenant-scoped table carries organizationId + projectId (resolved from the API key).
+//
+// Tenant integrity is enforced at the DB level (Codex security review, ADIM 4b):
+// - Project is unique on (id, organizationId); a project always belongs to one org.
+// - ApiKey/AgentRun reference Project by composite (projectId, organizationId), so a key/run
+//   can never point at a project from a different organization.
+// - AgentRun is unique on (id, organizationId, projectId); child rows (events, findings,
+//   exports) reference the run by that full tenant triple, so a child can never carry a
+//   tenant pair that disagrees with its run.
 
 generator client {
   provider = "prisma-client"
@@ -10,4 +19,192 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum RunStatus {
+  running
+  completed
+  failed
+  needs_approval
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+  critical
+}
+
+enum EventType {
+  run_started
+  user_input
+  model_call
+  tool_call
+  redaction_applied
+  human_approval_requested
+  human_approval_granted
+  error
+  final_output
+  run_completed
+}
+
+enum FindingType {
+  email
+  phone
+  api_key
+  bearer_token
+  credit_card
+  national_id
+}
+
+enum Severity {
+  low
+  medium
+  high
+}
+
+enum ExportType {
+  json
+  pdf
+}
+
+enum ExportStatus {
+  pending
+  ready
+  failed
+}
+
+// ---------------------------------------------------------------------------
+// Models
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  projects Project[]
+  apiKeys  ApiKey[]
+  runs     AgentRun[]
+}
+
+model Project {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  apiKeys      ApiKey[]
+  runs         AgentRun[]
+
+  @@unique([id, organizationId]) // FK target for tenant-consistent (projectId, organizationId)
+  @@index([organizationId])
+}
+
+/// API key — stores hash only. Plaintext is shown once at creation and never persisted.
+model ApiKey {
+  id             String    @id @default(cuid())
+  organizationId String
+  projectId      String
+  name           String
+  keyHash        String    @unique
+  prefix         String    @db.VarChar(20) // short non-secret prefix; bounded so a full key can't be stored
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  lastUsedAt     DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  @@index([organizationId, projectId])
+}
+
+model AgentRun {
+  id             String    @id @default(cuid())
+  organizationId String
+  projectId      String
+  agentName      String
+  status         RunStatus @default(running)
+  riskLevel      RiskLevel @default(low)
+  startedAt      DateTime  @default(now())
+  endedAt        DateTime?
+  durationMs     Int?
+  costMicroUsd   Int       @default(0)
+  eventCount     Int       @default(0)
+  redactionCount Int       @default(0)
+  metadata       Json?
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  events       AgentEvent[]
+  findings     RedactionFinding[]
+  exports      AuditExport[]
+
+  @@unique([id, organizationId, projectId]) // FK target for tenant-consistent child rows
+  @@index([organizationId, projectId, startedAt])
+}
+
+/// Only redacted snapshots are persisted — raw, unredacted payloads are never stored.
+model AgentEvent {
+  id             String     @id @default(cuid())
+  organizationId String
+  projectId      String
+  runId          String
+  seq            Int
+  type           EventType
+  title          String
+  occurredAt     DateTime   @default(now())
+  inputRedacted  Json?
+  outputRedacted Json?
+  riskLevel      RiskLevel?
+  costMicroUsd   Int?
+  metadata       Json?
+
+  run      AgentRun           @relation(fields: [runId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Cascade)
+  findings RedactionFinding[]
+
+  @@unique([runId, seq])
+  @@index([organizationId, projectId])
+}
+
+/// Redaction finding — stores originalHash only. The raw value is never stored.
+model RedactionFinding {
+  id             String      @id @default(cuid())
+  organizationId String
+  projectId      String
+  runId          String
+  eventId        String?
+  findingType    FindingType
+  severity       Severity
+  fieldPath      String
+  originalHash   String
+  createdAt      DateTime    @default(now())
+
+  run   AgentRun    @relation(fields: [runId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Cascade)
+  event AgentEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([runId])
+  @@index([organizationId, projectId])
+}
+
+model AuditExport {
+  id             String       @id @default(cuid())
+  organizationId String
+  projectId      String
+  runId          String
+  type           ExportType   @default(json)
+  status         ExportStatus @default(pending)
+  contentHash    String?
+  packet         Json?
+  createdAt      DateTime     @default(now())
+
+  run AgentRun @relation(fields: [runId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([organizationId, projectId])
 }
