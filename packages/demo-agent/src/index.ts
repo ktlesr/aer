@@ -2,11 +2,12 @@
 // Produces a real run + events + redaction findings in the AER backend.
 //
 // Config (env, with dev defaults):
-//   AER_BASE_URL  default http://localhost:3000
-//   AER_API_KEY   default the seeded demo key (see prisma/seed.ts)
+//   AER_API_BASE_URL  default http://localhost:3000 (AER_BASE_URL still honored for back-compat)
+//   AER_API_KEY       default the seeded demo key (see prisma/seed.ts)
 import { AgentEvidenceRecorder } from "collector-js";
 
-const baseUrl = process.env.AER_BASE_URL ?? "http://localhost:3000";
+const baseUrl =
+  process.env.AER_API_BASE_URL ?? process.env.AER_BASE_URL ?? "http://localhost:3000";
 const apiKey =
   process.env.AER_API_KEY ?? "aer_demo_3f7c1a9e5b2d4068a1c3e5f70912abcd";
 

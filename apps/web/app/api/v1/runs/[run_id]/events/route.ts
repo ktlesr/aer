@@ -27,6 +27,24 @@ export async function POST(
 
     const data = parseBody(createEventSchema, await readJson(request));
 
+    // Idempotency: when the caller supplies an explicit seq (a step index), a retry of the same
+    // (run_id, seq) must NOT create a second event — return the existing one as a success.
+    if (data.seq !== undefined) {
+      const existing = await prisma.agentEvent.findUnique({
+        where: { runId_seq: { runId: run.id, seq: data.seq } },
+      });
+      if (existing) {
+        const findingsCount = await prisma.redactionFinding.count({
+          where: { eventId: existing.id },
+        });
+        return jsonOk(
+          { event: serializeEvent(existing), redaction: { findingsCount }, idempotent: true },
+          200,
+          requestId,
+        );
+      }
+    }
+
     // Redact every persisted field BEFORE persistence; only redacted snapshots are stored.
     const { values, findings } = redactFields({
       title: data.title,

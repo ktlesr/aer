@@ -182,6 +182,29 @@ describe("API v1 — run lifecycle + redaction + tenant isolation", () => {
     expect((await res.json()).error.code).toBe("not_found");
   });
 
+  it("is idempotent on (run_id, seq): a duplicate does not create a second event", async () => {
+    const body = { type: "tool_call", title: "search_customer", seq: 42 };
+    const first = await addEvent(
+      req("POST", `/api/v1/runs/${runId}/events`, { token: TEST_KEY, body }),
+      ctx({ run_id: runId }),
+    );
+    expect(first.status).toBe(201);
+    const firstId = (await first.json()).event.id;
+
+    const second = await addEvent(
+      req("POST", `/api/v1/runs/${runId}/events`, { token: TEST_KEY, body }),
+      ctx({ run_id: runId }),
+    );
+    expect(second.status).toBe(200);
+    const secondJson = await second.json();
+    expect(secondJson.idempotent).toBe(true);
+    expect(secondJson.event.id).toBe(firstId);
+
+    // Exactly one row for that seq — the retry created nothing.
+    const rows = await prisma.agentEvent.findMany({ where: { runId, seq: 42 } });
+    expect(rows).toHaveLength(1);
+  });
+
   it("completes the run (200)", async () => {
     const res = await completeRun(
       req("POST", `/api/v1/runs/${runId}/complete`, {

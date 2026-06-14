@@ -98,6 +98,9 @@ importers:
       '@types/node':
         specifier: ^20.19.43
         version: 20.19.43
+      tsx:
+        specifier: ^4
+        version: 4.22.4
       typescript:
         specifier: ^5
         version: 5.9.3

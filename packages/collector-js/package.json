@@ -6,10 +6,12 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "smoke": "tsx src/smoke.ts"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
+    "tsx": "^4",
     "typescript": "^5"
   }
 }

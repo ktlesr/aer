@@ -9,7 +9,10 @@
     "lint": "pnpm --filter web lint",
     "db:migrate": "pnpm --filter web exec prisma migrate dev",
     "db:seed": "pnpm --filter web exec prisma db seed",
-    "demo": "pnpm --filter demo-agent start"
+    "demo": "pnpm --filter demo-agent start",
+    "key:create": "pnpm --filter web exec tsx scripts/create-key.ts",
+    "e2e:demo": "pnpm --filter web exec tsx scripts/e2e-demo.ts",
+    "test": "pnpm --filter web test"
   },
   "engines": {
     "node": ">=20"

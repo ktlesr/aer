@@ -20,6 +20,10 @@ export interface RecorderOptions {
   baseUrl: string;
   /** Bearer API key. Sent as Authorization: Bearer <apiKey>; never logged by this SDK. */
   apiKey: string;
+  /** Per-request timeout in ms (via AbortController). Default 10000. */
+  timeoutMs?: number;
+  /** Max retries on network error or 5xx (never on 4xx). Default 2. */
+  maxRetries?: number;
   /** Override fetch (for tests). Defaults to the global fetch. */
   fetchImpl?: typeof fetch;
 }
@@ -63,26 +67,44 @@ export class RecorderError extends Error {
   }
 }
 
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 class ApiClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
+  private readonly timeoutMs: number;
+  private readonly maxRetries: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: RecorderOptions) {
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
+    this.timeoutMs = options.timeoutMs ?? 10_000;
+    this.maxRetries = options.maxRetries ?? 2;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
-  async request<T>(method: string, path: string, body?: unknown): Promise<T> {
-    const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
-      method,
-      headers: {
-        authorization: `Bearer ${this.apiKey}`,
-        "content-type": "application/json",
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+  /** One attempt with an AbortController timeout. Network/timeout failures throw RecorderError(network). */
+  private async attempt<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        method,
+        headers: {
+          authorization: `Bearer ${this.apiKey}`,
+          "content-type": "application/json",
+        },
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      });
+    } catch {
+      // Network failure or timeout. Do not include the cause — it could echo the URL/key.
+      throw new RecorderError("network", `Request failed: ${method} ${path}`, 0);
+    } finally {
+      clearTimeout(timer);
+    }
 
     const text = await res.text();
     const json = (text ? JSON.parse(text) : {}) as unknown;
@@ -98,6 +120,23 @@ class ApiClient {
       );
     }
     return json as T;
+  }
+
+  /** Retry on network error / 5xx (max `maxRetries`); never retry on 4xx (a client/auth error). */
+  async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      try {
+        return await this.attempt<T>(method, path, body);
+      } catch (err) {
+        lastError = err;
+        const retryable =
+          err instanceof RecorderError && (err.status === 0 || err.status >= 500);
+        if (!retryable || attempt === this.maxRetries) throw err;
+        await sleep(200 * (attempt + 1));
+      }
+    }
+    throw lastError;
   }
 }
 

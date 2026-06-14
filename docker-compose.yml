@@ -1,0 +1,25 @@
+# Local Postgres for Agent Evidence Recorder.
+# Matches apps/web/.env (DATABASE_URL on host port 5440). Data is volume-persisted.
+#   docker compose up -d        # start
+#   docker compose down         # stop (keeps data)
+#   docker compose down -v      # stop + delete data
+services:
+  postgres:
+    image: postgres:16
+    container_name: aer-postgres
+    environment:
+      POSTGRES_USER: aer
+      POSTGRES_PASSWORD: aerpass
+      POSTGRES_DB: aer
+    ports:
+      - "5440:5432"
+    volumes:
+      - aer_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aer -d aer"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  aer_pgdata:
