@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { RiskBadge } from "@/components/risk-badge";
 import { cn } from "@/lib/utils";
 import { formatCost, formatDateTime, formatEventType } from "@/lib/format";
@@ -29,61 +28,71 @@ function summarize(value: unknown): string {
   return String(value);
 }
 
-function EventRow({ event }: { event: TimelineEvent }) {
+function EventRow({ event, index }: { event: TimelineEvent; index: number }) {
   const [open, setOpen] = useState(false);
   const hasPayload =
-    event.inputRedacted !== null && event.inputRedacted !== undefined
-      ? true
-      : event.outputRedacted !== null && event.outputRedacted !== undefined;
+    (event.inputRedacted !== null && event.inputRedacted !== undefined) ||
+    (event.outputRedacted !== null && event.outputRedacted !== undefined);
+
+  const nodeColor = event.redactionCount > 0 ? "bg-seal" : "bg-foreground/50";
 
   return (
-    <li className="relative pl-8">
-      {/* rail dot */}
-      <span className="absolute left-2 top-1.5 size-3 -translate-x-1/2 rounded-full border-2 border-background bg-foreground/70" />
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary" className="font-mono text-xs">
-          {event.seq}. {formatEventType(event.type)}
-        </Badge>
-        <span className="font-medium">{event.title}</span>
-        {event.riskLevel ? <RiskBadge risk={event.riskLevel} /> : null}
-        {event.redactionCount > 0 ? (
-          <Badge
-            variant="outline"
-            className="gap-1 border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300"
-          >
-            <ShieldAlert className="size-3" />
-            {event.redactionCount} redacted
-          </Badge>
-        ) : null}
-      </div>
+    <li
+      className="animate-rise relative pl-9"
+      style={{ animationDelay: `${index * 55}ms` }}
+    >
+      {/* node on the spine */}
+      <span className="absolute left-0 top-1 flex size-[1.05rem] -translate-x-1/2 items-center justify-center rounded-full border border-border bg-background">
+        <span className={cn("size-2 rounded-full", nodeColor)} />
+      </span>
 
-      <div className="mt-1 text-xs text-muted-foreground">
-        <span className="font-mono">{formatDateTime(event.occurredAt)}</span>
-        {event.costMicroUsd ? <span> · {formatCost(event.costMicroUsd)}</span> : null}
-        <span> · in {summarize(event.inputRedacted)} · out {summarize(event.outputRedacted)}</span>
-      </div>
-
-      {hasPayload ? (
-        <div className="mt-2">
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground"
-          >
-            {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
-            {open ? "Hide" : "Show"} payloads (redacted)
-          </button>
-          {open ? (
-            <pre className="mt-2 overflow-x-auto rounded-md border bg-muted/40 p-3 text-xs">
-              {JSON.stringify(
-                { input: event.inputRedacted ?? null, output: event.outputRedacted ?? null },
-                null,
-                2,
-              )}
-            </pre>
+      <div className="rounded-lg border border-border/70 bg-card px-4 py-3 transition-colors hover:border-border">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <span className="eyebrow text-foreground/70">
+            {String(event.seq).padStart(2, "0")} · {formatEventType(event.type)}
+          </span>
+          {event.riskLevel ? <RiskBadge risk={event.riskLevel} /> : null}
+          {event.redactionCount > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-seal/30 bg-seal/[0.06] px-2 py-0.5 font-mono text-[0.62rem] font-medium uppercase tracking-wider text-seal">
+              <ShieldAlert className="size-3" />
+              {event.redactionCount} redacted
+            </span>
           ) : null}
         </div>
-      ) : null}
+
+        <div className="mt-1.5 font-medium">{event.title}</div>
+
+        <div className="mt-1 font-mono text-xs text-muted-foreground">
+          {formatDateTime(event.occurredAt)}
+          {event.costMicroUsd ? <span> · {formatCost(event.costMicroUsd)}</span> : null}
+          <span className="text-muted-foreground/70">
+            {" "}
+            · in {summarize(event.inputRedacted)} · out {summarize(event.outputRedacted)}
+          </span>
+        </div>
+
+        {hasPayload ? (
+          <div className="mt-2.5">
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              className="inline-flex items-center gap-1 font-mono text-[0.68rem] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
+              {open ? "Hide" : "Show"} payloads · redacted
+            </button>
+            {open ? (
+              <pre className="mt-2 overflow-x-auto rounded-md border border-border/70 bg-muted/40 p-3 font-mono text-xs leading-relaxed">
+                {JSON.stringify(
+                  { input: event.inputRedacted ?? null, output: event.outputRedacted ?? null },
+                  null,
+                  2,
+                )}
+              </pre>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </li>
   );
 }
@@ -93,9 +102,9 @@ export function Timeline({ events }: { events: TimelineEvent[] }) {
     return <p className="text-sm text-muted-foreground">No events recorded.</p>;
   }
   return (
-    <ol className={cn("relative space-y-6 border-l pl-2")}>
-      {events.map((event) => (
-        <EventRow key={event.id} event={event} />
+    <ol className="relative space-y-3 border-l border-border pl-2">
+      {events.map((event, i) => (
+        <EventRow key={event.id} event={event} index={i} />
       ))}
     </ol>
   );

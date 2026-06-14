@@ -1,18 +1,17 @@
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-const RISK_STYLES: Record<string, string> = {
-  low: "border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300",
-  medium:
-    "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300",
-  high: "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-900 dark:bg-orange-950 dark:text-orange-300",
-  critical: "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-300",
+const RISK_DOT: Record<string, string> = {
+  low: "bg-slate-400",
+  medium: "bg-amber-500",
+  high: "bg-orange-500",
+  critical: "bg-red-500",
 };
 
 export function RiskBadge({ risk }: { risk: string }) {
   return (
-    <Badge variant="outline" className={cn("font-medium capitalize", RISK_STYLES[risk])}>
-      {risk}
-    </Badge>
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2 py-0.5">
+      <span className={cn("size-1.5 rounded-full", RISK_DOT[risk] ?? "bg-muted-foreground")} />
+      <span className="font-mono text-[0.62rem] font-medium uppercase tracking-wider">{risk}</span>
+    </span>
   );
 }
