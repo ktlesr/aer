@@ -1,0 +1,30 @@
+# Keep the build context small and never ship secrets / local build output.
+**/node_modules
+**/.next
+**/dist
+**/build
+**/.turbo
+
+# Secrets & local env
+**/.env
+**/.env*.local
+
+# VCS / tooling
+.git
+.github
+.claude
+.impeccable
+.vscode
+.idea
+
+# Generated Prisma client (regenerated during build)
+apps/web/app/generated
+
+# Logs / OS
+**/*.log
+**/.DS_Store
+**/Thumbs.db
+
+# Docs not needed at runtime
+docs
+*.md
