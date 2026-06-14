@@ -46,6 +46,46 @@ export interface AuditPacket {
 const jsonOrNull = (v: unknown): unknown => (v === undefined ? null : v);
 
 /**
+ * Deterministic sha256 over the run's redacted content (no timestamps) — a stable "evidence digest"
+ * for display. The downloadable packet has its own content_hash that also covers export metadata.
+ */
+export function evidenceDigest(
+  run: AgentRun,
+  events: AgentEvent[],
+  findings: RedactionFinding[],
+): string {
+  const canonical = {
+    run: {
+      id: run.id,
+      agentName: run.agentName,
+      status: run.status,
+      riskLevel: run.riskLevel,
+      startedAt: run.startedAt.toISOString(),
+      endedAt: run.endedAt ? run.endedAt.toISOString() : null,
+      durationMs: run.durationMs,
+      costMicroUsd: run.costMicroUsd,
+      eventCount: run.eventCount,
+      redactionCount: run.redactionCount,
+    },
+    events: events.map((e) => ({
+      seq: e.seq,
+      type: e.type,
+      title: e.title,
+      occurredAt: e.occurredAt.toISOString(),
+      inputRedacted: jsonOrNull(e.inputRedacted),
+      outputRedacted: jsonOrNull(e.outputRedacted),
+    })),
+    findings: findings.map((f) => ({
+      findingType: f.findingType,
+      severity: f.severity,
+      fieldPath: f.fieldPath,
+      originalHash: f.originalHash,
+    })),
+  };
+  return createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+}
+
+/**
  * Build a redacted, hash-anchored audit packet. Only redacted event snapshots and hashed findings
  * are included — never raw sensitive values. `content_hash` is sha256 over the canonical packet
  * excluding the `content_hash` field itself.
