@@ -1,0 +1,17 @@
+{
+  "name": "agent-evidence-recorder",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.19.0",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "lint": "pnpm --filter web lint",
+    "db:migrate": "pnpm --filter web exec prisma migrate dev",
+    "db:seed": "pnpm --filter web exec prisma db seed",
+    "demo": "pnpm --filter demo-agent start"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
