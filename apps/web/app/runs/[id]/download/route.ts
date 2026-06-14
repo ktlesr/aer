@@ -1,15 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import { resolveDashboardScope } from "@/lib/dashboard/scope";
+import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { buildAuditPacket } from "@/lib/audit/packet";
 
-// Dashboard-internal download. Scoped via resolveDashboardScope() (the same auth seam as the
-// dashboard pages), so it needs no API key. The packet contains only redacted, hashed data.
+// Dashboard-internal download. Gated by requireDashboardAccess() — the same authorization
+// boundary as the dashboard pages — so when login lands this export is protected at that one
+// point (docs/SECURITY.md: exports are not public). The packet contains only redacted, hashed data.
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await params;
-  const { organizationId, projectId } = resolveDashboardScope();
+  const { organizationId, projectId } = requireDashboardAccess();
 
   const run = await prisma.agentRun.findFirst({
     where: { id, organizationId, projectId },

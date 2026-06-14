@@ -70,7 +70,13 @@ export async function POST(
       }
 
       await tx.agentRun.update({
-        where: { id: run.id },
+        where: {
+          id_organizationId_projectId: {
+            id: run.id,
+            organizationId: auth.organizationId,
+            projectId: auth.projectId,
+          },
+        },
         data: {
           eventCount: { increment: 1 },
           redactionCount: { increment: findings.length },
