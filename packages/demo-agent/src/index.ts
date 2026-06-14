@@ -4,7 +4,7 @@
 // Config (env, with dev defaults):
 //   AER_API_BASE_URL  default http://localhost:3000 (AER_BASE_URL still honored for back-compat)
 //   AER_API_KEY       default the seeded demo key (see prisma/seed.ts)
-import { AgentEvidenceRecorder } from "collector-js";
+import { AgentEvidenceRecorder } from "@ktlsr/collector-js";
 
 const baseUrl =
   process.env.AER_API_BASE_URL ?? process.env.AER_BASE_URL ?? "http://localhost:3000";

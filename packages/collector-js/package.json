@@ -1,13 +1,53 @@
 {
-  "name": "collector-js",
-  "version": "0.0.0",
-  "private": true,
+  "name": "@ktlsr/collector-js",
+  "version": "0.1.0",
+  "description": "Collector SDK for Agent Evidence Recorder — record AI agent runs as audit-ready, redacted evidence over the v1 API.",
+  "license": "MIT",
+  "author": "ktlesr",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "smoke": "tsx src/smoke.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "agent-evidence-recorder",
+    "audit",
+    "evidence",
+    "ai-agents",
+    "redaction",
+    "compliance",
+    "sdk"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ktlesr/aer.git",
+    "directory": "packages/collector-js"
+  },
+  "homepage": "https://github.com/ktlesr/aer/tree/main/packages/collector-js#readme",
+  "bugs": {
+    "url": "https://github.com/ktlesr/aer/issues"
   },
   "devDependencies": {
     "@types/node": "^20.19.43",

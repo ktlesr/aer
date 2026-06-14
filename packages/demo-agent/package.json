@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "collector-js": "workspace:*"
+    "@ktlsr/collector-js": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.9.3",

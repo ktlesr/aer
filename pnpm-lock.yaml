@@ -107,7 +107,7 @@ importers:
 
   packages/demo-agent:
     dependencies:
-      collector-js:
+      '@ktlsr/collector-js':
         specifier: workspace:*
         version: link:../collector-js
     devDependencies:
