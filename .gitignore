@@ -33,3 +33,6 @@ Thumbs.db
 coverage/
 *.tsbuildinfo
 .turbo/
+
+# Claude Code — kişisel/yerel ayarlar paylaşılmaz (proje .claude/settings.json paylaşılır)
+.claude/settings.local.json
