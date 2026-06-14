@@ -3,6 +3,15 @@
 Seven models. Every tenant-scoped table carries `organizationId` + `projectId`, both
 **resolved from the API key** on write — never trusted from the client body.
 
+**Tenant integrity is enforced at the DB level** (Codex security review, ADIM 4b), not just by
+application code:
+- `Project` is unique on `(id, organizationId)`; `AgentRun` is unique on `(id, organizationId, projectId)`.
+- `ApiKey` and `AgentRun` reference `Project` by the composite `(projectId, organizationId)`, so a
+  key or run can never point at a project belonging to a different organization.
+- `AgentEvent`, `RedactionFinding`, and `AuditExport` reference their parent run by the full tenant
+  triple `(runId, organizationId, projectId)`, so a child row can never carry a tenant pair that
+  disagrees with its run. A cross-tenant insert fails with a foreign-key violation.
+
 All IDs are `cuid()` strings. All timestamps are UTC. Money/cost stored as integer
 **micro-USD** (`costMicroUsd`) to avoid float drift. JSON columns are Prisma `Json`.
 

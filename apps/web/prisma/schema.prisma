@@ -1,8 +1,16 @@
 // Agent Evidence Recorder — Prisma schema.
 // Implements the 7 models in docs/DATA_MODEL.md. Security rules in docs/SECURITY.md:
-// - ApiKey stores keyHash only (never plaintext).
+// - ApiKey stores keyHash only (never plaintext); prefix is a short non-secret label.
 // - RedactionFinding stores originalHash only (never the raw sensitive value).
 // - Every tenant-scoped table carries organizationId + projectId (resolved from the API key).
+//
+// Tenant integrity is enforced at the DB level (Codex security review, ADIM 4b):
+// - Project is unique on (id, organizationId); a project always belongs to one org.
+// - ApiKey/AgentRun reference Project by composite (projectId, organizationId), so a key/run
+//   can never point at a project from a different organization.
+// - AgentRun is unique on (id, organizationId, projectId); child rows (events, findings,
+//   exports) reference the run by that full tenant triple, so a child can never carry a
+//   tenant pair that disagrees with its run.
 
 generator client {
   provider = "prisma-client"
@@ -94,6 +102,7 @@ model Project {
   apiKeys      ApiKey[]
   runs         AgentRun[]
 
+  @@unique([id, organizationId]) // FK target for tenant-consistent (projectId, organizationId)
   @@index([organizationId])
 }
 
@@ -104,15 +113,14 @@ model ApiKey {
   projectId      String
   name           String
   keyHash        String    @unique
-  prefix         String
+  prefix         String    @db.VarChar(20) // short non-secret prefix; bounded so a full key can't be stored
   revokedAt      DateTime?
   createdAt      DateTime  @default(now())
   lastUsedAt     DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
 
-  @@index([keyHash])
   @@index([organizationId, projectId])
 }
 
@@ -132,11 +140,12 @@ model AgentRun {
   metadata       Json?
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project      Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
   events       AgentEvent[]
   findings     RedactionFinding[]
   exports      AuditExport[]
 
+  @@unique([id, organizationId, projectId]) // FK target for tenant-consistent child rows
   @@index([organizationId, projectId, startedAt])
 }
 
@@ -156,7 +165,7 @@ model AgentEvent {
   costMicroUsd   Int?
   metadata       Json?
 
-  run      AgentRun           @relation(fields: [runId], references: [id], onDelete: Cascade)
+  run      AgentRun           @relation(fields: [runId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Cascade)
   findings RedactionFinding[]
 
   @@unique([runId, seq])
@@ -176,7 +185,7 @@ model RedactionFinding {
   originalHash   String
   createdAt      DateTime    @default(now())
 
-  run   AgentRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  run   AgentRun    @relation(fields: [runId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Cascade)
   event AgentEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   @@index([runId])
@@ -194,7 +203,7 @@ model AuditExport {
   packet         Json?
   createdAt      DateTime     @default(now())
 
-  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  run AgentRun @relation(fields: [runId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Cascade)
 
   @@index([runId])
   @@index([organizationId, projectId])
