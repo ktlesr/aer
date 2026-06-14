@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Info } from "lucide-react";
 import { Wordmark } from "@/components/brand";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -30,6 +31,20 @@ export default function RunsLayout({ children }: { children: React.ReactNode }) 
           </div>
         </div>
       </header>
+
+      <div
+        role="note"
+        className="border-b border-border/60"
+        style={{ background: "color-mix(in oklch, var(--seal) 7%, transparent)" }}
+      >
+        <div className="mx-auto flex max-w-6xl items-center gap-2 px-6 py-2 text-xs text-muted-foreground">
+          <Info className="size-3.5 shrink-0" style={{ color: "var(--seal)" }} aria-hidden />
+          <span>
+            <span className="font-medium text-foreground">Demo.</span> Every run shown is sample
+            data — this instance contains no real customer information.
+          </span>
+        </div>
+      </div>
 
       <div className="flex-1">{children}</div>
 
