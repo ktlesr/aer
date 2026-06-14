@@ -87,7 +87,8 @@ function EventRow({ event, index }: { event: TimelineEvent; index: number }) {
             <button
               type="button"
               onClick={() => setOpen((v) => !v)}
-              className="inline-flex items-center gap-1 font-mono text-[0.66rem] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+              aria-expanded={open}
+              className="inline-flex items-center gap-1 rounded-sm font-mono text-[0.66rem] font-medium uppercase tracking-wider text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               {open ? <ChevronDown className="size-3" /> : <ChevronRight className="size-3" />}
               {open ? "Hide" : "Show"} payloads · redacted

@@ -54,7 +54,7 @@ export default async function RunDetailPage({
     <main className="mx-auto max-w-6xl px-6 py-12">
       <Link
         href="/runs"
-        className="inline-flex items-center gap-1.5 font-mono text-[0.66rem] font-medium uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex items-center gap-1.5 rounded-sm font-mono text-[0.66rem] font-medium uppercase tracking-wider text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <ArrowLeft className="size-3.5" /> All runs
       </Link>
@@ -70,7 +70,7 @@ export default async function RunDetailPage({
         <a
           href={`/runs/${run.id}/download`}
           download
-          className="group inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-[var(--shadow-soft)] transition-all hover:-translate-y-px hover:opacity-95"
+          className="group inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-[var(--shadow-soft)] outline-none transition-all hover:-translate-y-px hover:opacity-95 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-0"
         >
           <Download className="size-4 transition-transform group-hover:translate-y-px" /> Download audit packet
         </a>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Wordmark } from "@/components/brand";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function RunsLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,6 +26,7 @@ export default function RunsLayout({ children }: { children: React.ReactNode }) 
             >
               demo
             </span>
+            <ThemeToggle />
           </div>
         </div>
       </header>

@@ -11,10 +11,12 @@ export function RawJsonViewer({ data }: { data: unknown }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className={cn(
           "inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5",
           "font-mono text-[0.68rem] font-medium uppercase tracking-wider text-muted-foreground",
-          "transition-colors hover:border-foreground/30 hover:text-foreground",
+          "outline-none transition-colors hover:border-foreground/30 hover:text-foreground",
+          "focus-visible:border-ring focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50",
         )}
       >
         <Braces className="size-3.5" />

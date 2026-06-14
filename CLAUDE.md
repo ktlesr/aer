@@ -101,6 +101,14 @@ Skill'ler model-invoked'dır: faza uygun olanı kendin yükle, playbook'unu izle
 - Seed: `pnpm --filter web prisma db seed`
 - Demo agent: `pnpm --filter demo-agent start`
 
+## Design Context (impeccable)
+Marka & görsel sistem her oturumda yeniden türetilmesin diye:
+- **Strateji / register / brand personality / anti-references / design principles:** `docs/PRODUCT.md`
+- **Görsel sistem (renk token'ları, tipografi, bileşenler, do/don't):** `DESIGN.md` (repo kökü)
+- **North Star:** "The Forensic Ledger, read in the Security Console." Register: **product**.
+- **Değişmezler:** dark "Security Console" varsayılan + light "Archive Paper"; tek aksan = petrol-teal **seal** (yalnızca delil bütünlüğü: redaction, hash, focus, seçim); Fraunces (başlık) + IBM Plex Sans (gövde) + IBM Plex Mono (her doğrulanabilir fact). Renkler OKLCH; redacted-by-default.
+- Yeni ekran/komponent yazmadan önce `DESIGN.md` Do's & Don'ts bölümünü uygula. UI işleri için `/impeccable` komutları (`critique`, `audit`, `polish`, `live`).
+
 ## Referanslar
 - Roller ve sınırlar: `AGENTS.md`
 - Adım adım akış ve hazır prompt'lar: `RUNBOOK.md`
