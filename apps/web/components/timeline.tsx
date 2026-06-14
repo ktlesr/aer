@@ -35,12 +35,13 @@ function EventRow({ event, index }: { event: TimelineEvent; index: number }) {
     (event.outputRedacted !== null && event.outputRedacted !== undefined);
 
   return (
-    <li className="animate-rise relative pl-9" style={{ animationDelay: `${index * 55}ms` }}>
-      {/* node on the spine */}
+    <li className="animate-rise relative pl-10" style={{ animationDelay: `${index * 55}ms` }}>
+      {/* node centered on the spine (both anchored at left-[0.6875rem]) */}
       <span
-        className="absolute left-0 top-2 flex size-[1.15rem] -translate-x-1/2 items-center justify-center rounded-full border bg-background"
+        className="absolute left-[0.6875rem] top-2 z-10 flex size-[1.15rem] -translate-x-1/2 items-center justify-center rounded-full border bg-background"
         style={{
-          borderColor: redacted ? "color-mix(in oklch, var(--seal) 45%, transparent)" : "var(--border)",
+          borderColor: redacted ? "color-mix(in oklch, var(--seal) 50%, transparent)" : "var(--border)",
+          boxShadow: redacted ? "0 0 0 3px color-mix(in oklch, var(--seal) 12%, transparent)" : undefined,
         }}
       >
         <span
@@ -112,7 +113,16 @@ export function Timeline({ events }: { events: TimelineEvent[] }) {
     return <p className="text-sm text-muted-foreground">No events recorded.</p>;
   }
   return (
-    <ol className="relative space-y-3 border-l border-border pl-2">
+    <ol className="relative space-y-3">
+      {/* continuous spine — anchored at the same x as every node */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute left-[0.6875rem] top-2 bottom-2 w-px -translate-x-1/2"
+        style={{
+          background:
+            "linear-gradient(180deg, transparent, var(--border) 8%, var(--border) 92%, transparent)",
+        }}
+      />
       {events.map((event, i) => (
         <EventRow key={event.id} event={event} index={i} />
       ))}
