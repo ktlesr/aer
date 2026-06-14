@@ -34,5 +34,15 @@ coverage/
 *.tsbuildinfo
 .turbo/
 
-# Claude Code — kişisel/yerel ayarlar paylaşılmaz (proje .claude/settings.json paylaşılır)
-.claude/settings.local.json
+# Geçici çıktılar (ekran görüntüleri vb.)
+/.tmp-*/
+
+# Yerel-only — diskte tutulur, repoda paylaşılmaz (tooling + iç dokümanlar)
+.claude/
+.impeccable/
+/docs/
+/AGENTS.md
+/DESIGN.md
+/GO_LIVE.md
+/PUBLISHING.md
+/RUNBOOK.md
