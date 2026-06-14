@@ -32,7 +32,13 @@ export async function POST(
     ]);
 
     const updated = await prisma.agentRun.update({
-      where: { id: run.id },
+      where: {
+        id_organizationId_projectId: {
+          id: run.id,
+          organizationId: auth.organizationId,
+          projectId: auth.projectId,
+        },
+      },
       data: {
         status: data.status,
         endedAt,

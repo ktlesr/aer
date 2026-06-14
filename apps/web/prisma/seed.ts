@@ -263,7 +263,9 @@ async function main(): Promise<void> {
   console.log("Seed complete:");
   console.log(`  org=${ORG_ID} project=${PROJECT_ID} run=${RUN_ID}`);
   console.log(`  events=${EVENTS.length} findings=2 exports=1`);
-  console.log(`  demo API key (dev only): ${DEMO_API_KEY}`);
+  // Do not print the full key — it can leak into CI/terminal logs. The full dev key lives in
+  // apps/web/.env.example (AER_DEMO_API_KEY) for the demo agent.
+  console.log(`  demo API key prefix: ${DEMO_API_KEY.slice(0, 13)}… (full dev key in apps/web/.env.example)`);
 }
 
 main()
