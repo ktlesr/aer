@@ -11,6 +11,7 @@ const sha256 = (v: string): string => createHash("sha256").update(v).digest("hex
 
 const TEST_KEY = "aer_test_aaaa1111bbbb2222cccc3333";
 const OTHER_KEY = "aer_test_zzzz9999yyyy8888xxxx7777";
+const REVOKED_KEY = "aer_test_rrrr0000rrrr0000rrrr0000";
 
 const ORG = "org_itest";
 const OTHER_ORG = "org_itest_other";
@@ -55,6 +56,16 @@ beforeAll(async () => {
       prefix: TEST_KEY.slice(0, 13),
     },
   });
+  await prisma.apiKey.create({
+    data: {
+      organizationId: ORG,
+      projectId: "proj_itest",
+      name: "revoked key",
+      keyHash: sha256(REVOKED_KEY),
+      prefix: REVOKED_KEY.slice(0, 13),
+      revokedAt: new Date(),
+    },
+  });
 
   await prisma.organization.create({
     data: {
@@ -91,6 +102,13 @@ describe("API v1 — auth", () => {
   it("rejects an invalid API key (401)", async () => {
     const res = await createRun(
       req("POST", "/api/v1/runs", { token: "aer_test_nope", body: { agentName: "x" } }),
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it("rejects a revoked API key (401)", async () => {
+    const res = await createRun(
+      req("POST", "/api/v1/runs", { token: REVOKED_KEY, body: { agentName: "x" } }),
     );
     expect(res.status).toBe(401);
   });
@@ -216,6 +234,22 @@ describe("API v1 — run lifecycle + redaction + tenant isolation", () => {
     expect(text).toContain("content_hash");
   });
 
+  it("rejects cross-tenant export creation (404)", async () => {
+    const res = await createExport(
+      req("POST", `/api/v1/runs/${runId}/exports?type=json`, { token: OTHER_KEY }),
+      ctx({ run_id: runId }),
+    );
+    expect(res.status).toBe(404);
+  });
+
+  it("rejects cross-tenant download (404)", async () => {
+    const res = await downloadExport(
+      req("GET", `/api/v1/runs/${runId}/exports/${exportId}/download`, { token: OTHER_KEY }),
+      ctx({ run_id: runId, export_id: exportId }),
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("returns a pending placeholder for PDF export (202)", async () => {
     const res = await createExport(
       req("POST", `/api/v1/runs/${runId}/exports?type=pdf`, { token: TEST_KEY }),
@@ -223,5 +257,49 @@ describe("API v1 — run lifecycle + redaction + tenant isolation", () => {
     );
     expect(res.status).toBe(202);
     expect((await res.json()).export.status).toBe("pending");
+  });
+});
+
+describe("API v1 — redaction covers all persisted fields, not just input/output", () => {
+  it("redacts title and metadata; raw values never reach DB, export, or download", async () => {
+    const rawKey = "sk-proj-abcDEF123456ghiJKL789mno";
+    const rawMail = "leak@secret.example";
+
+    const runRes = await createRun(
+      req("POST", "/api/v1/runs", {
+        token: TEST_KEY,
+        body: { agentName: "Field Redaction Agent", metadata: { note: rawKey } },
+      }),
+    );
+    const { run } = await runRes.json();
+
+    await addEvent(
+      req("POST", `/api/v1/runs/${run.id}/events`, {
+        token: TEST_KEY,
+        body: { type: "model_call", title: `contact ${rawMail}`, metadata: { auth: rawKey } },
+      }),
+      ctx({ run_id: run.id }),
+    );
+
+    const ev = await prisma.agentEvent.findFirstOrThrow({ where: { runId: run.id } });
+    expect(ev.title).toContain("[REDACTED_EMAIL]");
+    expect(ev.title).not.toContain(rawMail);
+    expect(JSON.stringify(ev.metadata)).not.toContain(rawKey);
+
+    const runRow = await prisma.agentRun.findFirstOrThrow({ where: { id: run.id } });
+    expect(JSON.stringify(runRow.metadata)).not.toContain(rawKey);
+
+    const expRes = await createExport(
+      req("POST", `/api/v1/runs/${run.id}/exports?type=json`, { token: TEST_KEY }),
+      ctx({ run_id: run.id }),
+    );
+    const { export: exp } = await expRes.json();
+    const dl = await downloadExport(
+      req("GET", `/api/v1/runs/${run.id}/exports/${exp.id}/download`, { token: TEST_KEY }),
+      ctx({ run_id: run.id, export_id: exp.id }),
+    );
+    const text = await dl.text();
+    expect(text).not.toContain(rawKey);
+    expect(text).not.toContain(rawMail);
   });
 });

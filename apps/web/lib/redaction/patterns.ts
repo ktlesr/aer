@@ -44,14 +44,16 @@ export const PATTERNS: RedactionPattern[] = [
     findingType: "bearer_token",
     severity: "high",
     token: "[REDACTED_BEARER_TOKEN]",
-    regex: /Bearer\s+[A-Za-z0-9._~+/-]+=*/g,
+    // Require a reasonably long token so short non-secret "Bearer x" strings aren't redacted.
+    regex: /Bearer\s+[A-Za-z0-9._~+/-]{8,}=*/g,
   },
-  // Prefixed API keys (OpenAI-style sk-…, our aer_live_/test_/demo_… keys).
+  // Prefixed API keys (OpenAI sk-/sk-proj-…, our aer_live_/test_/demo_… keys).
+  // Hyphens/underscores are allowed in the body so sk-proj-… style keys are caught.
   {
     findingType: "api_key",
     severity: "high",
     token: "[REDACTED_API_KEY]",
-    regex: /\b(?:sk|pk|rk)-[A-Za-z0-9]{16,}\b/g,
+    regex: /\b(?:sk|pk|rk)-[A-Za-z0-9][A-Za-z0-9_-]{15,}\b/g,
   },
   {
     findingType: "api_key",

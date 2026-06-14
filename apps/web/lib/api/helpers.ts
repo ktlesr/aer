@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/app/generated/prisma/client";
 import type { AgentEvent, AgentRun, AuditExport } from "@/app/generated/prisma/client";
-import type { RedactionFinding } from "@/lib/redaction";
+import { redactJson, type RedactionFinding } from "@/lib/redaction";
 import { ApiError } from "./errors";
 import type { AuthContext } from "./auth";
 
@@ -37,15 +37,35 @@ export function toJsonInput(value: unknown): Prisma.InputJsonValue | undefined {
   return value === undefined ? undefined : (value as Prisma.InputJsonValue);
 }
 
-/** Prefix redaction findings' fieldPath with the event field they came from (input/output). */
-export function prefixFindings(
-  findings: RedactionFinding[],
-  prefix: "input" | "output",
-): RedactionFinding[] {
-  return findings.map((f) => ({
-    ...f,
-    fieldPath: f.fieldPath ? `${prefix}.${f.fieldPath}` : prefix,
-  }));
+export interface RedactedFields {
+  values: Record<string, unknown>;
+  findings: RedactionFinding[];
+}
+
+/**
+ * Redact a named set of fields (e.g. agentName, title, metadata, input, output) before they are
+ * persisted or exported. Every persisted free-text/JSON field is scanned — not just input/output —
+ * so a raw secret in `title` or `metadata` can never survive into the DB or the audit packet.
+ * Each finding's fieldPath is namespaced by its field, e.g. `metadata.key` or `title`.
+ */
+export function redactFields(fields: Record<string, unknown>): RedactedFields {
+  const values: Record<string, unknown> = {};
+  const findings: RedactionFinding[] = [];
+  for (const [name, value] of Object.entries(fields)) {
+    if (value === undefined) {
+      values[name] = undefined;
+      continue;
+    }
+    const r = redactJson(value);
+    values[name] = r.redacted;
+    for (const f of r.findings) {
+      findings.push({
+        ...f,
+        fieldPath: f.fieldPath ? `${name}.${f.fieldPath}` : name,
+      });
+    }
+  }
+  return { values, findings };
 }
 
 export function serializeRun(run: AgentRun) {

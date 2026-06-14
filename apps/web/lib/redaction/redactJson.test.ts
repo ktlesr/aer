@@ -53,6 +53,13 @@ describe("redactJson — per-pattern detection", () => {
     expect((redacted as { key: string }).key).toBe("[REDACTED_API_KEY]");
   });
 
+  it("redacts an sk-proj- style API key (hyphenated body)", () => {
+    const raw = "sk-proj-abcDEF123456ghiJKL789mno";
+    const { redacted, findings } = redactJson({ key: raw });
+    expect((redacted as { key: string }).key).toBe("[REDACTED_API_KEY]");
+    expect(findingFor(findings, "key")?.findingType).toBe("api_key");
+  });
+
   it("redacts a JWT/bearer token as high severity", () => {
     const raw =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";

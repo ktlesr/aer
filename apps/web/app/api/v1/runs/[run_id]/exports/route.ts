@@ -32,12 +32,18 @@ export async function POST(
     }
 
     if (type !== "json") {
-      throw new ApiError("validation_error", `Unsupported export type: ${type}`, 422);
+      // Do not echo the caller-supplied type — it could contain a key/PII.
+      throw new ApiError("validation_error", "Unsupported export type", 422);
     }
 
+    const scope = {
+      runId: run.id,
+      organizationId: auth.organizationId,
+      projectId: auth.projectId,
+    };
     const [events, findings] = await Promise.all([
-      prisma.agentEvent.findMany({ where: { runId: run.id }, orderBy: { seq: "asc" } }),
-      prisma.redactionFinding.findMany({ where: { runId: run.id } }),
+      prisma.agentEvent.findMany({ where: scope, orderBy: { seq: "asc" } }),
+      prisma.redactionFinding.findMany({ where: scope }),
     ]);
 
     const packet = buildAuditPacket(run, events, findings, new Date());
