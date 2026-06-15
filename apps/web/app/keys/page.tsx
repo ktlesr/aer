@@ -2,6 +2,9 @@ import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { listApiKeys } from "@/lib/auth/api-keys";
 import { formatDateTime } from "@/lib/format";
 import { KeysManager, type KeyRow } from "@/components/keys-manager";
+import { SdkUsage } from "@/components/sdk-usage";
+
+const BASE_URL = process.env.AUTH_URL ?? "https://aer.ktlsr.com";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +36,9 @@ export default async function KeysPage() {
         </p>
       </header>
       <KeysManager keys={rows} />
+      <div className="mt-10 border-t border-border/60 pt-8">
+        <SdkUsage baseUrl={BASE_URL} />
+      </div>
     </main>
   );
 }

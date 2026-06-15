@@ -39,7 +39,7 @@ export async function AppHeader({ active }: { active: "runs" | "keys" }) {
         style={{ background: "linear-gradient(90deg, transparent, var(--seal), transparent)" }}
       />
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-        <Link href="/runs" className="transition-opacity hover:opacity-80">
+        <Link href="/" className="transition-opacity hover:opacity-80">
           <Wordmark />
         </Link>
         <div className="flex items-center gap-5">
