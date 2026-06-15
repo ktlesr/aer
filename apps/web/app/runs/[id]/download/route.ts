@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const { id } = await params;
-  const { organizationId, projectId } = requireDashboardAccess();
+  const { organizationId, projectId } = await requireDashboardAccess();
 
   const run = await prisma.agentRun.findFirst({
     where: { id, organizationId, projectId },
