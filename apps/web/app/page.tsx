@@ -65,11 +65,17 @@ export default function Home() {
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <Link
-            href="/runs"
+            href="/signup"
             className="group inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-[var(--shadow-soft)] outline-none transition-all hover:-translate-y-px hover:opacity-95 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-0 sm:w-auto"
           >
-            View the live demo
+            Get started — it&apos;s free
             <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+          <Link
+            href="/login"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm text-muted-foreground outline-none transition-colors hover:border-foreground/30 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:w-auto"
+          >
+            Sign in
           </Link>
           <a
             href="https://www.npmjs.com/package/@ktlsr/collector-js"
@@ -96,7 +102,7 @@ export default function Home() {
 
       <footer className="flex flex-col gap-1 border-t border-border/60 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>
-          Live demo · sample data only — <span className="text-foreground">no real customer data</span>.
+          Stored <span className="text-foreground">redacted</span> — raw sensitive values are never persisted.
         </span>
         <span className="font-mono">evidence packets are hash-anchored</span>
       </footer>
