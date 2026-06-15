@@ -2,13 +2,40 @@ import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { RiskBadge } from "@/components/risk-badge";
+import { FirstRunGuide } from "@/components/first-run-guide";
 import { listRuns } from "@/lib/dashboard/queries";
+import { requireDashboardAccess } from "@/lib/dashboard/access";
+import { listApiKeys } from "@/lib/auth/api-keys";
 import { formatCost, formatDateTime, formatDuration } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+const BASE_URL = process.env.AUTH_URL ?? "https://aer.ktlsr.com";
+
 export default async function RunsPage() {
-  const runs = await listRuns();
+  const scope = await requireDashboardAccess();
+  const [runs, keys] = await Promise.all([listRuns(), listApiKeys(scope)]);
+
+  // First-run activation: empty workspace gets a guide, not a blank table.
+  if (runs.length === 0) {
+    const hasKey = keys.some((k) => k.revokedAt === null);
+    return (
+      <main className="mx-auto max-w-3xl px-6 py-14">
+        <header className="animate-rise mb-9">
+          <p className="eyebrow">Evidence Ledger</p>
+          <h1 className="mt-2.5 font-display text-[2.6rem] font-semibold leading-[1.05] tracking-[-0.02em]">
+            Record your first run
+          </h1>
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Your agent runs will appear here — each a chronological, redacted, hash-anchored evidence
+            packet. Three steps to your first one.
+          </p>
+        </header>
+        <FirstRunGuide hasKey={hasKey} baseUrl={BASE_URL} />
+      </main>
+    );
+  }
+
   const withRedactions = runs.filter((r) => r.redactionCount > 0).length;
   const totalRedactions = runs.reduce((n, r) => n + r.redactionCount, 0);
 
@@ -58,14 +85,7 @@ export default async function RunsPage() {
               </tr>
             </thead>
             <tbody>
-              {runs.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-5 py-14 text-center text-sm text-muted-foreground">
-                    No runs yet. Run the demo agent to record one.
-                  </td>
-                </tr>
-              ) : (
-                runs.map((run) => (
+              {runs.map((run) => (
                   <tr
                     key={run.id}
                     className="group border-b border-border/60 transition-colors last:border-0 hover:bg-muted/40"
@@ -106,8 +126,7 @@ export default async function RunsPage() {
                       )}
                     </td>
                   </tr>
-                ))
-              )}
+              ))}
             </tbody>
           </table>
         </div>

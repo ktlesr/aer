@@ -87,7 +87,9 @@ export function KeysManager({ keys }: { keys: KeyRow[] }) {
       <section>
         <h2 className="mb-3 font-display text-lg font-semibold">Your keys</h2>
         {keys.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No keys yet. Create one above.</p>
+          <p className="text-sm text-muted-foreground">
+            No keys yet. Create one above to authenticate the collector SDK and record your first run.
+          </p>
         ) : (
           <ul className="divide-y divide-border rounded-xl border border-border">
             {keys.map((k) => (

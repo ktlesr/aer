@@ -43,7 +43,7 @@ function CopyBlock({ label, code }: { label: string; code: string }) {
  * How to use an API key from an agent: .env vars + a minimal collector SDK call.
  * Shared by /keys (post-mint) and /login (onboarding teaser).
  */
-export function SdkUsage({ baseUrl }: { baseUrl: string }) {
+export function SdkUsage({ baseUrl, showHeading = true }: { baseUrl: string; showHeading?: boolean }) {
   const install = "npm install @ktlsr/collector-js";
 
   const env = `# .env\nAER_API_BASE_URL=${baseUrl}\nAER_API_KEY=aer_xxxxxxxxxxxxxxxxxxxxxxxx`;
@@ -62,13 +62,15 @@ await run.complete({ status: "completed" });`;
 
   return (
     <section aria-label="Using your API key" className="space-y-3">
-      <div>
-        <h2 className="font-display text-lg font-semibold">Use it from your agent</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Install the collector SDK, set two environment variables, then drop a few calls into your
-          agent. Runs recorded with the key appear on your dashboard.
-        </p>
-      </div>
+      {showHeading ? (
+        <div>
+          <h2 className="font-display text-lg font-semibold">Use it from your agent</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Install the collector SDK, set two environment variables, then drop a few calls into your
+            agent. Runs recorded with the key appear on your dashboard.
+          </p>
+        </div>
+      ) : null}
       <CopyBlock label="install" code={install} />
       <CopyBlock label=".env" code={env} />
       <CopyBlock label="agent.ts" code={code} />
