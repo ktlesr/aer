@@ -108,12 +108,12 @@ export default async function RunDetailPage({
 
         <aside className="space-y-9">
           <section>
-            <h2 className="mb-3 font-display text-xl font-semibold tracking-tight">Evidence seal</h2>
+            <h2 className="mb-3 font-display text-base font-semibold tracking-tight">Evidence seal</h2>
             <HashSeal digest={digest} />
           </section>
 
           <section>
-            <h2 className="mb-3 font-display text-xl font-semibold tracking-tight">
+            <h2 className="mb-3 font-display text-base font-semibold tracking-tight">
               Redaction findings
               <span className="ml-2 font-sans text-sm font-normal text-muted-foreground">
                 {run.findings.length}
@@ -147,7 +147,7 @@ export default async function RunDetailPage({
           </section>
 
           <section>
-            <h2 className="mb-3 font-display text-xl font-semibold tracking-tight">Raw record</h2>
+            <h2 className="mb-3 font-display text-base font-semibold tracking-tight">Raw record</h2>
             <RawJsonViewer
               data={{
                 run: {

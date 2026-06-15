@@ -37,8 +37,7 @@ function Step({
 /** Activation guide shown on an empty /runs: get the user to their first recorded run. */
 export function FirstRunGuide({ hasKey, baseUrl }: { hasKey: boolean; baseUrl: string }) {
   return (
-    <div className="animate-rise surface p-6 sm:p-8" style={{ animationDelay: "90ms" }}>
-      <ol className="space-y-8">
+    <ol className="animate-rise space-y-8" style={{ animationDelay: "90ms" }}>
         <Step n={1} title="Create an API key" done={hasKey}>
           {hasKey ? (
             <p>
@@ -75,7 +74,6 @@ export function FirstRunGuide({ hasKey, baseUrl }: { hasKey: boolean; baseUrl: s
             redacted, hash-anchored timeline — visible only to your workspace.
           </p>
         </Step>
-      </ol>
-    </div>
+    </ol>
   );
 }
