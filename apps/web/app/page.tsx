@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { SealMark } from "@/components/brand";
+import { HomeDashboard } from "@/components/home-dashboard";
+import { auth } from "@/auth";
+
+export const dynamic = "force-dynamic";
 
 function GithubMark() {
   return (
@@ -31,7 +35,10 @@ const PILLARS = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const session = await auth();
+  if (session?.user?.id) return <HomeDashboard />;
+
   return (
     <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl flex-col px-6">
       <header className="flex items-center justify-between py-6">

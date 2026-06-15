@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { logoutAction } from "@/lib/auth/actions";
 
 /** Dashboard chrome shared by /runs and /keys: brand, workspace label, nav, logout, theme. */
-export async function AppHeader({ active }: { active: "runs" | "keys" }) {
+export async function AppHeader({ active }: { active: "runs" | "keys" | "home" }) {
   const session = await auth();
   const org = session?.user?.id
     ? await prisma.organization.findUnique({
