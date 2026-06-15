@@ -87,6 +87,11 @@ model Organization {
   name      String
   createdAt DateTime @default(now())
 
+  // Owner of this workspace. Nullable so pre-auth orgs (seed/demo/org_default) stay valid.
+  // One user owns at most one organization for now (personal workspace; teams deferred).
+  ownerUserId String? @unique
+  owner       User?   @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
+
   projects Project[]
   apiKeys  ApiKey[]
   runs     AgentRun[]
@@ -207,4 +212,63 @@ model AuditExport {
 
   @@index([runId])
   @@index([organizationId, projectId])
+}
+
+// ---------------------------------------------------------------------------
+// Auth (Auth.js / NextAuth v5 + Prisma adapter). Additive: no existing model changes
+// except Organization.ownerUserId (nullable). JWT session strategy is used (required by the
+// Credentials provider), so the Session table is kept only for adapter compatibility.
+// ---------------------------------------------------------------------------
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  // Set only for email/password (Credentials) users; null for Google-only users.
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+
+  accounts     Account[]
+  sessions     Session[]
+  organization Organization?
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
