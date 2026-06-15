@@ -1,10 +1,54 @@
 "use client";
 
-import { useActionState } from "react";
-import { KeyRound, ShieldAlert } from "lucide-react";
+import { useActionState, useState } from "react";
+import { Check, Copy, KeyRound, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createKeyAction, revokeKeyAction, type CreateKeyState } from "@/lib/auth/actions";
+
+/** Shows the freshly minted key with a click-to-copy button. Remounted per key (resets state). */
+function NewKeyCallout({ apiKey }: { apiKey: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(apiKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard unavailable (e.g. insecure context) — the value stays visible to copy manually.
+    }
+  };
+
+  return (
+    <div className="mt-4 rounded-lg border border-[color-mix(in_oklch,var(--seal)_40%,transparent)] bg-[color-mix(in_oklch,var(--seal)_8%,transparent)] p-4">
+      <div className="flex items-center gap-2 text-sm font-medium" style={{ color: "var(--seal)" }}>
+        <ShieldAlert className="size-4" />
+        Copy this now — it won&apos;t be shown again
+      </div>
+      <div className="mt-2 flex items-stretch gap-2">
+        <button
+          type="button"
+          onClick={copy}
+          title="Click to copy"
+          className="min-w-0 flex-1 cursor-pointer break-all rounded-md bg-background/70 px-3 py-2 text-left font-mono text-sm transition-colors hover:bg-background"
+        >
+          {apiKey}
+        </button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={copy}
+          aria-label={copied ? "Copied" : "Copy API key"}
+        >
+          {copied ? <Check className="text-[var(--seal)]" /> : <Copy />}
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export interface KeyRow {
   id: string;
@@ -37,17 +81,7 @@ export function KeysManager({ keys }: { keys: KeyRow[] }) {
           </Button>
         </form>
 
-        {state.apiKey ? (
-          <div className="mt-4 rounded-lg border border-[color-mix(in_oklch,var(--seal)_40%,transparent)] bg-[color-mix(in_oklch,var(--seal)_8%,transparent)] p-4">
-            <div className="flex items-center gap-2 text-sm font-medium" style={{ color: "var(--seal)" }}>
-              <ShieldAlert className="size-4" />
-              Copy this now — it won&apos;t be shown again
-            </div>
-            <code className="mt-2 block break-all rounded-md bg-background/70 px-3 py-2 font-mono text-sm">
-              {state.apiKey}
-            </code>
-          </div>
-        ) : null}
+        {state.apiKey ? <NewKeyCallout key={state.apiKey} apiKey={state.apiKey} /> : null}
       </section>
 
       <section>
