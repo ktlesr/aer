@@ -17,6 +17,13 @@ build/
 *.db
 *.db-journal
 
+# Database dumps / backups — may contain emails, password & key hashes. Never commit.
+*.sql
+*.sql.gz
+*.dump
+*.dump.gz
+*.backup
+
 # Logs
 *.log
 npm-debug.log*
