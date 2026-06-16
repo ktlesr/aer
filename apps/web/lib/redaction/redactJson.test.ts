@@ -98,6 +98,51 @@ describe("redactJson — per-pattern detection", () => {
   });
 });
 
+describe("redactJson — phone precision (no false positives on money / document numbers)", () => {
+  const hasPhone = (v: unknown) =>
+    redactJson({ v }).findings.some((f) => f.findingType === "phone");
+
+  it.each([
+    "+90 555 123 4567",
+    "+90 555 123 45 67",
+    "+1 415 555 0142",
+    "0 555 123 45 67",
+    "0555 123 4567",
+    "05551234567",
+    "0212 345 67 89",
+    "(415) 555-0142",
+    "(0212) 345 67 89",
+  ])("redacts a real phone number: %s", (raw) => {
+    const { redacted, findings } = redactJson({ v: raw });
+    expect((redacted as { v: string }).v).toBe("[REDACTED_PHONE]");
+    expect(findings.some((f) => f.findingType === "phone")).toBe(true);
+  });
+
+  it.each([
+    "100.000.000 TL",
+    "4.000.000",
+    "1.500.000,50 TL",
+    "asgari sabit yatırım tutarı 4.000.000 TL'dir",
+    "9903_teblig.pdf",
+    "2003_Proje_Bazli.pdf",
+    "9903_karar.pdf_madde_9_p_1_s1",
+    "ykh-2026-ykh_2026_185",
+    "31.12.2026",
+  ])("does NOT treat money / document numbers as a phone: %s", (raw) => {
+    expect(hasPhone(raw)).toBe(false);
+  });
+
+  it("classifies an 11-digit TCKN as national_id, and an 0-prefixed number as phone", () => {
+    const tckn = redactJson({ v: "12345678901" });
+    expect(tckn.findings.some((f) => f.findingType === "national_id")).toBe(true);
+    expect(tckn.findings.some((f) => f.findingType === "phone")).toBe(false);
+
+    const phone = redactJson({ v: "05551234567" });
+    expect(phone.findings.some((f) => f.findingType === "phone")).toBe(true);
+    expect(phone.findings.some((f) => f.findingType === "national_id")).toBe(false);
+  });
+});
+
 describe("redactJson — safety invariants", () => {
   it("never includes a raw sensitive value in the findings", () => {
     const raw = "jane.doe@example.com";

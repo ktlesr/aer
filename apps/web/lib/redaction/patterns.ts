@@ -72,12 +72,14 @@ export const PATTERNS: RedactionPattern[] = [
       return d.length >= 13 && d.length <= 19 && luhnValid(d);
     },
   },
-  // National-id-like: SSN format ###-##-#### or a bare 11-digit id (e.g. TR national id).
+  // National-id-like: SSN format ###-##-#### or a bare 11-digit id (e.g. TR TCKN).
+  // TR national id never starts with 0, so requiring a 1–9 first digit keeps this from
+  // swallowing 11-digit phone numbers (which begin with the "0" trunk prefix).
   {
     findingType: "national_id",
     severity: "high",
     token: "[REDACTED_NATIONAL_ID]",
-    regex: /\b\d{3}-\d{2}-\d{4}\b|\b\d{11}\b/g,
+    regex: /\b\d{3}-\d{2}-\d{4}\b|\b[1-9]\d{10}\b/g,
   },
   // Email.
   {
@@ -86,16 +88,41 @@ export const PATTERNS: RedactionPattern[] = [
     token: "[REDACTED_EMAIL]",
     regex: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g,
   },
-  // Phone: 7–15 digits with a leading + or phone-like separators (avoids bare numeric ids).
+  // Phone — intentionally strict to avoid false positives on money amounts ("4.000.000 TL"),
+  // regulation/document numbers and dotted filenames ("9903_teblig.pdf"). A dot is NEVER a phone
+  // separator (dots are thousands separators / file extensions). Only real telephony signals match:
+  // a leading "+", a parenthesised area code, or the Turkish "0" trunk prefix.
+  //
+  // 1) International (E.164-style): leading "+", 8–15 digits, space/dash/paren separators.
   {
     findingType: "phone",
     severity: "medium",
     token: "[REDACTED_PHONE]",
-    regex: /\+?\d[\d ().-]{6,}\d/g,
+    regex: /\+\d[\d ()-]{6,}\d/g,
     validate: (m) => {
       const d = digitsOf(m);
-      if (d.length < 7 || d.length > 15) return false;
-      return /\+/.test(m) || /[ ().-]/.test(m);
+      return d.length >= 8 && d.length <= 15;
     },
+  },
+  // 2) Parenthesised area code (e.g. US "(415) 555-0142", TR "(0212) 345 67 89"). The parentheses
+  //    are the signal — money and document numbers never use them this way.
+  {
+    findingType: "phone",
+    severity: "medium",
+    token: "[REDACTED_PHONE]",
+    regex: /\(\d{2,4}\)[ -]?\d{3}[ -]?\d{2}[ -]?\d{2,4}/g,
+    validate: (m) => {
+      const d = digitsOf(m);
+      return d.length >= 9 && d.length <= 13;
+    },
+  },
+  // 3) Turkish national: "0" trunk prefix + 10 digits (3-3-2-2), space/dash/paren separators only.
+  //    Word/dot boundaries stop it from biting into filenames like "02123456789_rapor.pdf".
+  {
+    findingType: "phone",
+    severity: "medium",
+    token: "[REDACTED_PHONE]",
+    regex: /(?<![\w.])0[ (]?\d{3}[) ]?[ -]?\d{3}[ -]?\d{2}[ -]?\d{2}(?![\w.])/g,
+    validate: (m) => digitsOf(m).length === 11,
   },
 ];
