@@ -3,7 +3,7 @@ import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { RiskBadge } from "@/components/risk-badge";
 import { FirstRunGuide } from "@/components/first-run-guide";
-import { listRuns, getRunStats } from "@/lib/dashboard/queries";
+import { listRuns, getRunStats, RUNS_PAGE_SIZE, RUNS_PAGE_SIZES } from "@/lib/dashboard/queries";
 import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { listApiKeys } from "@/lib/auth/api-keys";
 import { formatCost, formatDateTime, formatDuration } from "@/lib/format";
@@ -15,12 +15,17 @@ const BASE_URL = process.env.AUTH_URL ?? "https://aer.ktlsr.com";
 export default async function RunsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; size?: string }>;
 }) {
   const scope = await requireDashboardAccess();
-  const requestedPage = Math.max(1, parseInt((await searchParams).page ?? "1", 10) || 1);
+  const sp = await searchParams;
+  const requestedPage = Math.max(1, parseInt(sp.page ?? "1", 10) || 1);
+  const requestedSize = parseInt(sp.size ?? "", 10);
+  const pageSize = (RUNS_PAGE_SIZES as readonly number[]).includes(requestedSize)
+    ? requestedSize
+    : RUNS_PAGE_SIZE;
   const [{ runs, page, totalPages }, stats, keys] = await Promise.all([
-    listRuns(scope, requestedPage),
+    listRuns(scope, requestedPage, pageSize),
     getRunStats(scope),
     listApiKeys(scope),
   ]);
@@ -138,25 +143,53 @@ export default async function RunsPage({
         </div>
       </div>
 
-      {totalPages > 1 ? (
-        <nav className="mt-6 flex items-center justify-between" aria-label="Pagination">
-          <PagerLink page={page - 1} disabled={page <= 1} dir="prev" />
-          <span className="font-mono text-xs text-muted-foreground tabular-nums">
-            Page {page} of {totalPages}
-          </span>
-          <PagerLink page={page + 1} disabled={page >= totalPages} dir="next" />
-        </nav>
-      ) : null}
+      <nav
+        className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+        aria-label="Pagination"
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="eyebrow mr-1">Per page</span>
+          {RUNS_PAGE_SIZES.map((s) =>
+            s === pageSize ? (
+              <span
+                key={s}
+                aria-current="true"
+                className="rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-xs tabular-nums text-foreground"
+              >
+                {s}
+              </span>
+            ) : (
+              <Link
+                key={s}
+                href={`/runs?page=1&size=${s}`}
+                className="rounded-md px-2 py-0.5 font-mono text-xs tabular-nums text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                {s}
+              </Link>
+            ),
+          )}
+        </div>
+
+        {totalPages > 1 ? (
+          <div className="flex items-center gap-4">
+            <PagerLink href={`/runs?page=${page - 1}&size=${pageSize}`} disabled={page <= 1} dir="prev" />
+            <span className="font-mono text-xs text-muted-foreground tabular-nums">
+              Page {page} of {totalPages}
+            </span>
+            <PagerLink href={`/runs?page=${page + 1}&size=${pageSize}`} disabled={page >= totalPages} dir="next" />
+          </div>
+        ) : null}
+      </nav>
     </main>
   );
 }
 
 function PagerLink({
-  page,
+  href,
   disabled,
   dir,
 }: {
-  page: number;
+  href: string;
   disabled: boolean;
   dir: "prev" | "next";
 }) {
@@ -176,7 +209,7 @@ function PagerLink({
   }
   return (
     <Link
-      href={`/runs?page=${page}`}
+      href={href}
       className={`${cls} text-muted-foreground outline-none hover:border-foreground/30 hover:text-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50`}
     >
       {dir === "prev" ? icon : null}

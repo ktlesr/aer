@@ -2,7 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { requireDashboardAccess } from "./access";
 import type { DashboardScope } from "./scope";
 
-export const RUNS_PAGE_SIZE = 25;
+export const RUNS_PAGE_SIZE = 10;
+export const RUNS_PAGE_SIZES = [10, 25, 50, 100] as const;
 
 /** One page of runs for a tenant, newest first, plus the total for pagination. */
 export async function listRuns(
