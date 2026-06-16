@@ -25,7 +25,7 @@ export default async function KeysPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-14">
-      <header className="mb-9">
+      <header className="animate-rise mb-9">
         <p className="eyebrow">Credentials</p>
         <h1 className="mt-2.5 font-display text-[2.6rem] font-semibold leading-[1.05] tracking-[-0.02em]">
           API Keys
@@ -35,8 +35,10 @@ export default async function KeysPage() {
           to your organization — runs recorded with it appear only on your dashboard.
         </p>
       </header>
-      <KeysManager keys={rows} />
-      <div className="mt-10 border-t border-border/60 pt-8">
+      <div className="animate-rise" style={{ animationDelay: "90ms" }}>
+        <KeysManager keys={rows} />
+      </div>
+      <div className="animate-rise mt-10 border-t border-border/60 pt-8" style={{ animationDelay: "150ms" }}>
         <SdkUsage baseUrl={BASE_URL} />
       </div>
     </main>

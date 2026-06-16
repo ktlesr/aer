@@ -20,6 +20,14 @@ export const metadata = {
     "Turn every AI agent action — model calls, tool calls, approvals, redactions — into a chronological, hash-anchored evidence packet. Provable to an auditor, with no raw sensitive data stored.",
 };
 
+const CHAIN: { label: string; sealed?: boolean }[] = [
+  { label: "RUN STARTED" },
+  { label: "MODEL CALL" },
+  { label: "TOOL CALL" },
+  { label: "REDACTION", sealed: true },
+  { label: "COMPLETED" },
+];
+
 const PILLARS = [
   {
     title: "Provable",
@@ -59,18 +67,29 @@ export default async function Home() {
         </a>
       </header>
 
-      <section className="animate-rise flex flex-1 flex-col justify-center py-16">
-        <span className="eyebrow">Audit-ready evidence layer · v1</span>
-        <h1 className="mt-4 text-balance font-display text-[clamp(2rem,6vw,3.6rem)] font-semibold leading-[1.05] tracking-[-0.03em]">
+      <section className="flex flex-1 flex-col justify-center py-16">
+        <span className="animate-rise eyebrow" style={{ animationDelay: "40ms" }}>
+          Audit-ready evidence layer · v1
+        </span>
+        <h1
+          className="animate-rise mt-4 text-balance font-display text-[clamp(2rem,6vw,3.6rem)] font-semibold leading-[1.05] tracking-[-0.03em]"
+          style={{ animationDelay: "110ms" }}
+        >
           Prove what your AI agents did — without storing what they saw.
         </h1>
-        <p className="mt-5 max-w-xl text-pretty leading-relaxed text-muted-foreground">
+        <p
+          className="animate-rise mt-5 max-w-xl text-pretty leading-relaxed text-muted-foreground"
+          style={{ animationDelay: "180ms" }}
+        >
           Agent Evidence Recorder turns every critical action an agent takes — model calls, tool
           calls, human approvals, redactions and errors — into a chronological, hash-anchored
           evidence packet a compliance, legal or security reviewer can trust.
         </p>
 
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div
+          className="animate-rise mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center"
+          style={{ animationDelay: "250ms" }}
+        >
           <Link
             href="/signup"
             className="group inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-[var(--shadow-soft)] outline-none transition-all hover:-translate-y-px hover:opacity-95 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-0 sm:w-auto"
@@ -94,7 +113,44 @@ export default async function Home() {
           </a>
         </div>
 
-        <dl className="mt-14 grid gap-x-8 gap-y-7 border-t border-border/60 pt-8 sm:grid-cols-3">
+        <div
+          className="animate-rise mt-12 flex flex-wrap items-center gap-x-1 gap-y-2"
+          style={{ animationDelay: "320ms" }}
+          aria-hidden
+        >
+          {CHAIN.map((node, i) => (
+            <span key={node.label} className="flex items-center gap-1">
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="size-[7px] rounded-full border"
+                  style={
+                    node.sealed
+                      ? {
+                          background: "var(--seal)",
+                          borderColor: "var(--seal)",
+                          boxShadow: "0 0 0 2.5px color-mix(in oklch, var(--seal) 22%, transparent)",
+                        }
+                      : { background: "var(--card)", borderColor: "var(--border)" }
+                  }
+                />
+                <span
+                  className="font-mono text-[0.6rem] tracking-[0.14em]"
+                  style={{ color: node.sealed ? "var(--seal)" : "var(--muted-foreground)" }}
+                >
+                  {node.label}
+                </span>
+              </span>
+              {i < CHAIN.length - 1 ? (
+                <span className="mx-1.5 h-px w-5 bg-border" />
+              ) : null}
+            </span>
+          ))}
+        </div>
+
+        <dl
+          className="animate-rise mt-12 grid gap-x-8 gap-y-7 border-t border-border/60 pt-8 sm:grid-cols-3"
+          style={{ animationDelay: "390ms" }}
+        >
           {PILLARS.map((p) => (
             <div key={p.title}>
               <dt className="flex items-center gap-2 font-display text-base font-medium">

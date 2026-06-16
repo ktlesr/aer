@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AuthForm } from "@/components/auth-form";
+import { AuthShell } from "@/components/auth-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -13,8 +14,8 @@ export default async function LoginPage() {
   const googleEnabled = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6 py-16">
+    <AuthShell>
       <AuthForm mode="login" googleEnabled={googleEnabled} />
-    </main>
+    </AuthShell>
   );
 }

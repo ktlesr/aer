@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SealMark } from "@/components/brand";
 import { loginAction, signupAction, googleAction, type FormState } from "@/lib/auth/actions";
 
 function GoogleGlyph() {
@@ -31,102 +32,131 @@ export function AuthForm({
   );
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="mb-8 text-center">
-        <p className="eyebrow">{isSignup ? "Create account" : "Welcome back"}</p>
-        <h1 className="mt-2.5 font-display text-3xl font-semibold tracking-[-0.02em]">
-          {isSignup ? "Start recording evidence" : "Sign in"}
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {isSignup
-            ? "Your own workspace — only you see your runs."
-            : "Access your agent runs and audit packets."}
-        </p>
+    <div className="animate-rise w-full max-w-sm" style={{ animationDelay: "120ms" }}>
+      {/* Brand mark — visible on mobile where the evidence aside is hidden. */}
+      <div className="mb-7 flex items-center gap-2.5 lg:hidden">
+        <SealMark className="size-7" />
+        <span className="font-display text-[0.98rem] font-semibold tracking-[-0.01em]">
+          Agent Evidence Recorder
+        </span>
       </div>
 
-      {googleEnabled ? (
-        <>
-          <form action={googleAction}>
-            <Button type="submit" variant="outline" size="lg" className="w-full">
-              <GoogleGlyph />
-              Continue with Google
-            </Button>
-          </form>
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" />
-            or
-            <span className="h-px flex-1 bg-border" />
-          </div>
-        </>
-      ) : null}
-
-      <form action={formAction} className="space-y-3">
-        {isSignup ? (
-          <div className="space-y-1.5">
-            <label htmlFor="name" className="text-xs font-medium text-muted-foreground">
-              Name <span className="opacity-60">(optional)</span>
-            </label>
-            <Input id="name" name="name" autoComplete="name" placeholder="Jane Doe" />
-          </div>
-        ) : null}
-
-        <div className="space-y-1.5">
-          <label htmlFor="email" className="text-xs font-medium text-muted-foreground">
-            Email
-          </label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            required
-            autoComplete="email"
-            placeholder="you@company.com"
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label htmlFor="password" className="text-xs font-medium text-muted-foreground">
-            Password
-          </label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            required
-            minLength={8}
-            autoComplete={isSignup ? "new-password" : "current-password"}
-            placeholder={isSignup ? "At least 8 characters" : "••••••••"}
-          />
-        </div>
-
-        {state.error ? (
-          <p className="text-sm text-destructive" role="alert">
-            {state.error}
+      <div className="rounded-xl border border-border bg-card p-7">
+        <header className="mb-6">
+          <p className="eyebrow">{isSignup ? "Create account" : "Welcome back"}</p>
+          <h1 className="mt-2.5 font-display text-[1.9rem] font-semibold leading-tight tracking-[-0.02em]">
+            {isSignup ? "Start recording evidence" : "Sign in"}
+          </h1>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+            {isSignup
+              ? "Your own workspace — only you see your runs."
+              : "Access your agent runs and audit packets."}
           </p>
+        </header>
+
+        {googleEnabled ? (
+          <>
+            <form action={googleAction}>
+              <Button type="submit" variant="outline" size="lg" className="w-full">
+                <GoogleGlyph />
+                Continue with Google
+              </Button>
+            </form>
+            <div className="my-5 flex items-center gap-3 font-mono text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">
+              <span className="h-px flex-1 bg-border" />
+              or
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          </>
         ) : null}
 
-        <Button type="submit" size="lg" className="w-full" disabled={pending}>
-          {pending ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
-        </Button>
-      </form>
+        <form action={formAction} className="space-y-3.5">
+          {isSignup ? (
+            <Field id="name" label="Name" optional>
+              <Input id="name" name="name" autoComplete="name" placeholder="Jane Doe" />
+            </Field>
+          ) : null}
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+          <Field id="email" label="Email">
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              placeholder="you@company.com"
+            />
+          </Field>
+
+          <Field id="password" label="Password">
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              required
+              minLength={8}
+              autoComplete={isSignup ? "new-password" : "current-password"}
+              placeholder={isSignup ? "At least 8 characters" : "••••••••"}
+            />
+          </Field>
+
+          {state.error ? (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              {state.error}
+            </p>
+          ) : null}
+
+          <Button type="submit" size="lg" className="mt-1 w-full" disabled={pending}>
+            {pending ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
+          </Button>
+        </form>
+      </div>
+
+      <p className="mt-5 text-center text-sm text-muted-foreground">
         {isSignup ? (
           <>
             Already have an account?{" "}
-            <Link href="/login" className="text-foreground underline-offset-4 hover:underline">
+            <Link href="/login" className="font-medium text-foreground underline-offset-4 hover:underline">
               Sign in
             </Link>
           </>
         ) : (
           <>
             New here?{" "}
-            <Link href="/signup" className="text-foreground underline-offset-4 hover:underline">
+            <Link href="/signup" className="font-medium text-foreground underline-offset-4 hover:underline">
               Create an account
             </Link>
           </>
         )}
       </p>
+    </div>
+  );
+}
+
+function Field({
+  id,
+  label,
+  optional,
+  children,
+}: {
+  id: string;
+  label: string;
+  optional?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label
+        htmlFor={id}
+        className="font-mono text-[0.62rem] font-medium uppercase tracking-[0.16em] text-muted-foreground"
+      >
+        {label}
+        {optional ? <span className="ml-1 opacity-60">optional</span> : null}
+      </label>
+      {children}
     </div>
   );
 }
