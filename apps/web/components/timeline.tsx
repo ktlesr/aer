@@ -94,7 +94,7 @@ function EventRow({ event, index }: { event: TimelineEvent; index: number }) {
               {open ? "Hide" : "Show"} payloads · redacted
             </button>
             {open ? (
-              <pre className="mt-2 overflow-x-auto rounded-md border border-border/70 bg-muted/40 p-3 font-mono text-xs leading-relaxed">
+              <pre className="mt-2 max-h-[28rem] overflow-auto rounded-md border border-border/70 bg-muted/40 p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words">
                 {JSON.stringify(
                   { input: event.inputRedacted ?? null, output: event.outputRedacted ?? null },
                   null,

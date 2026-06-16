@@ -28,7 +28,7 @@ export function RawJsonViewer({ data }: { data: unknown }) {
             Payloads are stored <span className="text-foreground">redacted</span> — no raw sensitive
             values are present. This is the complete stored record.
           </p>
-          <pre className="mt-2 max-h-[28rem] overflow-auto rounded-md border border-border/70 bg-muted/40 p-3 font-mono text-xs leading-relaxed">
+          <pre className="mt-2 max-h-[28rem] overflow-auto rounded-md border border-border/70 bg-muted/40 p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap break-words">
             {JSON.stringify(data, null, 2)}
           </pre>
         </div>
