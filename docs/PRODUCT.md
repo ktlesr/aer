@@ -98,9 +98,3 @@ A customer asks for their data to be deleted. The agent:
 
 AER records all of this as an evidence packet: a timeline + redaction findings + a
 downloadable JSON audit packet that contains **no raw sensitive values**.
-
-## Out of Scope (MVP) — "defer after MVP"
-billing · SSO · RBAC · multi-cloud · real-time/WebSocket · team management · API marketplace ·
-blockchain/immutable audit · LangChain/CrewAI/n8n/Zapier/Make integrations · SOC2/GDPR full-
-compliance claims · Redis · Kafka · Temporal · Kubernetes · Elasticsearch · ClickHouse ·
-microservices · PDF export (placeholder only) · signed export links (later).
