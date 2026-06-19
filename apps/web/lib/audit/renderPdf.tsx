@@ -1,9 +1,11 @@
+import path from "node:path";
 import {
   Document,
   Page,
   Text,
   View,
   StyleSheet,
+  Font,
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { AuditPacket } from "./packet";
@@ -11,8 +13,17 @@ import { formatCost, formatDuration } from "@/lib/format";
 
 // The PDF is the human-readable view of the SAME audit packet the JSON export carries — it shows
 // that packet's content_hash verbatim so a reviewer can re-hash the JSON and confirm they match.
-// We never hash the PDF bytes; integrity lives in the JSON packet. Built-in fonts only (Helvetica /
-// Courier) — no font registration, so rendering is deterministic and needs no network or font files.
+// We never hash the PDF bytes; integrity lives in the JSON packet.
+
+// IBM Plex (design system font) bundled as TTF — the built-in PDF fonts (Helvetica/Courier) only
+// cover Latin-1 and mangle Turkish glyphs (İ ı ş ğ ö ü ç). These TTFs carry Latin-Extended, so
+// Turkish agent names / titles / field paths render correctly. Resolved from cwd (the web app dir
+// in dev, test, and the Dockerfile's full-repo copy) — not bundler-traced, so it survives the build.
+const FONT_DIR = path.join(process.cwd(), "lib/audit/fonts");
+Font.register({ family: "IBMPlexSans", src: path.join(FONT_DIR, "IBMPlexSans-Regular.ttf") });
+Font.register({ family: "IBMPlexMono", src: path.join(FONT_DIR, "IBMPlexMono-Regular.ttf") });
+// Don't hyphenate: long hashes/tokens must stay intact, not be split with a hyphen on wrap.
+Font.registerHyphenationCallback((word) => [word]);
 
 // Forensic Ledger palette (petrol-teal seal is the only accent; reserved for verifiable facts).
 const SEAL = "#0d7d8c";
@@ -34,24 +45,33 @@ const s = StyleSheet.create({
     paddingTop: 44,
     paddingBottom: 56,
     paddingHorizontal: 48,
-    fontFamily: "Helvetica",
+    fontFamily: "IBMPlexSans",
     fontSize: 9,
     lineHeight: 1.4,
   },
   eyebrow: {
-    fontFamily: "Courier",
+    fontFamily: "IBMPlexMono",
     fontSize: 7,
     letterSpacing: 2,
     color: SEAL,
     textTransform: "uppercase",
   },
-  title: { fontFamily: "Helvetica-Bold", fontSize: 20, marginTop: 6 },
-  runId: { fontFamily: "Courier", fontSize: 9, color: MUTED, marginTop: 4 },
+  title: { fontFamily: "IBMPlexSans", fontSize: 20, marginTop: 6 },
+  // Agent name is user data. Uppercased ONLY when English (headingCase); Turkish names stay natural
+  // so the "i" is never mangled. The style must therefore look right in both upper and natural case.
+  agentName: {
+    fontFamily: "IBMPlexSans",
+    fontSize: 15,
+    color: INK,
+    marginTop: 5,
+    marginBottom: 8,
+  },
+  runId: { fontFamily: "IBMPlexMono", fontSize: 9, color: MUTED, marginTop: 4 },
   rule: { borderBottomWidth: 1, borderBottomColor: BORDER, marginVertical: 14 },
   sealRule: { borderBottomWidth: 2, borderBottomColor: SEAL, marginTop: 14 },
 
   sectionLabel: {
-    fontFamily: "Courier",
+    fontFamily: "IBMPlexMono",
     fontSize: 7,
     letterSpacing: 1.5,
     color: MUTED,
@@ -62,9 +82,9 @@ const s = StyleSheet.create({
   // Fact grid (run summary).
   grid: { flexDirection: "row", flexWrap: "wrap" },
   cell: { width: "25%", marginBottom: 10 },
-  cellLabel: { fontFamily: "Courier", fontSize: 6.5, color: MUTED, textTransform: "uppercase", letterSpacing: 1 },
+  cellLabel: { fontFamily: "IBMPlexMono", fontSize: 6.5, color: MUTED, textTransform: "uppercase", letterSpacing: 1 },
   cellValue: { fontSize: 10, marginTop: 2 },
-  mono: { fontFamily: "Courier" },
+  mono: { fontFamily: "IBMPlexMono" },
 
   // Integrity seal block.
   seal: {
@@ -74,8 +94,8 @@ const s = StyleSheet.create({
     padding: 12,
     marginTop: 4,
   },
-  sealHashLabel: { fontFamily: "Courier", fontSize: 6.5, color: SEAL, textTransform: "uppercase", letterSpacing: 1 },
-  sealHash: { fontFamily: "Courier", fontSize: 9, color: INK, marginTop: 3 },
+  sealHashLabel: { fontFamily: "IBMPlexMono", fontSize: 6.5, color: SEAL, textTransform: "uppercase", letterSpacing: 1 },
+  sealHash: { fontFamily: "IBMPlexMono", fontSize: 9, color: INK, marginTop: 3 },
   sealMeta: { flexDirection: "row", marginTop: 8 },
   sealMetaItem: { marginRight: 28 },
 
@@ -92,10 +112,10 @@ const s = StyleSheet.create({
     borderBottomColor: BORDER,
     paddingVertical: 4,
   },
-  th: { fontFamily: "Courier", fontSize: 6.5, color: MUTED, textTransform: "uppercase", letterSpacing: 1 },
+  th: { fontFamily: "IBMPlexMono", fontSize: 6.5, color: MUTED, textTransform: "uppercase", letterSpacing: 1 },
   td: { fontSize: 8.5 },
 
-  empty: { fontSize: 9, color: MUTED, fontStyle: "italic" },
+  empty: { fontSize: 9, color: MUTED },
 
   footer: {
     position: "absolute",
@@ -108,7 +128,7 @@ const s = StyleSheet.create({
     borderTopColor: BORDER,
     paddingTop: 8,
   },
-  footerText: { fontFamily: "Courier", fontSize: 6.5, color: MUTED },
+  footerText: { fontFamily: "IBMPlexMono", fontSize: 6.5, color: MUTED },
 });
 
 function Cell({ label, children }: { label: string; children: React.ReactNode }) {
@@ -137,7 +157,8 @@ function AuditDocument({ packet }: { packet: AuditPacket }) {
 
         {/* Run summary */}
         <View style={{ marginTop: 16 }}>
-          <Text style={s.sectionLabel}>Run · {run.agentName}</Text>
+          <Text style={s.sectionLabel}>Run</Text>
+          <Text style={s.agentName}>{headingCase(run.agentName)}</Text>
           <View style={s.grid}>
             <Cell label="Status">{run.status}</Cell>
             <Cell label="Risk">{run.riskLevel}</Cell>
@@ -242,6 +263,19 @@ function AuditDocument({ packet }: { packet: AuditPacket }) {
 function fmt(iso: string): string {
   return `${iso.slice(0, 19).replace("T", " ")}Z`;
 }
+
+/** Distinctive Turkish letters — their presence marks a string as Turkish. */
+const TURKISH_LETTERS = /[ışğçöüİŞĞÇÖÜ]/;
+
+/**
+ * Uppercase ONLY English text. A string containing Turkish letters is left in its natural case,
+ * because force-uppercasing Turkish mangles the dotted/dotless "i" (English upper: İ→I; and no
+ * single locale rule fits a mixed string). Pure-ASCII strings are treated as English and uppercased.
+ */
+export function headingCase(s: string): string {
+  return TURKISH_LETTERS.test(s) ? s : s.toUpperCase();
+}
+
 
 /** Render an audit packet to PDF bytes. Pure function of the packet — no DB, no clock. */
 export async function renderAuditPdf(packet: AuditPacket): Promise<Uint8Array<ArrayBuffer>> {

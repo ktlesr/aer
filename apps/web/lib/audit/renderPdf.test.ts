@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildAuditPacket } from "./packet";
-import { renderAuditPdf } from "./renderPdf";
+import { renderAuditPdf, headingCase } from "./renderPdf";
 import type {
   AgentEvent,
   AgentRun,
@@ -9,7 +9,8 @@ import type {
 
 const run = {
   id: "run_x",
-  agentName: "Customer Data Deletion Agent",
+  // Turkish glyphs (İ ı ş ğ ö ü ç) exercise the bundled Latin-Extended font path.
+  agentName: "Müşteri Verisi Silme Ajanı — İŞLEM",
   status: "completed",
   riskLevel: "high",
   startedAt: new Date("2026-01-01T00:00:00.000Z"),
@@ -24,7 +25,7 @@ const events = [
   {
     seq: 1,
     type: "user_input",
-    title: "Customer requests deletion",
+    title: "Müşteri silme talebi · doğrulama yapıldı",
     occurredAt: new Date("2026-01-01T00:00:05.000Z"),
     inputRedacted: { customer: { email: "[REDACTED_EMAIL]" } },
     outputRedacted: null,
@@ -44,6 +45,13 @@ const findings = [
 ] as unknown as RedactionFinding[];
 
 const gen = new Date("2026-01-01T00:03:00.000Z");
+
+describe("headingCase", () => {
+  it("uppercases English but leaves Turkish in natural case", () => {
+    expect(headingCase("Deletion Bot v2")).toBe("DELETION BOT V2");
+    expect(headingCase("Müşteri Verisi Silme Ajanı")).toBe("Müşteri Verisi Silme Ajanı");
+  });
+});
 
 describe("renderAuditPdf", () => {
   it("produces a non-empty PDF for a populated packet", async () => {
