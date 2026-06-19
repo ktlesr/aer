@@ -273,13 +273,34 @@ describe("API v1 — run lifecycle + redaction + tenant isolation", () => {
     expect(res.status).toBe(404);
   });
 
-  it("returns a pending placeholder for PDF export (202)", async () => {
+  it("creates a PDF export (201) and downloads a real PDF with the same content hash", async () => {
     const res = await createExport(
       req("POST", `/api/v1/runs/${runId}/exports?type=pdf`, { token: TEST_KEY }),
       ctx({ run_id: runId }),
     );
-    expect(res.status).toBe(202);
-    expect((await res.json()).export.status).toBe("pending");
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json.export.type).toBe("pdf");
+    expect(json.export.status).toBe("ready");
+    expect(json.export.contentHash).toMatch(/^sha256:/);
+
+    const dl = await downloadExport(
+      req("GET", `/api/v1/runs/${runId}/exports/${json.export.id}/download`, { token: TEST_KEY }),
+      ctx({ run_id: runId, export_id: json.export.id }),
+    );
+    expect(dl.status).toBe(200);
+    expect(dl.headers.get("content-type")).toBe("application/pdf");
+    expect(dl.headers.get("x-content-hash")).toBe(json.export.contentHash);
+    const bytes = new Uint8Array(await dl.arrayBuffer());
+    expect(Buffer.from(bytes.subarray(0, 5)).toString("latin1")).toBe("%PDF-");
+  });
+
+  it("rejects an unsupported export type (422)", async () => {
+    const res = await createExport(
+      req("POST", `/api/v1/runs/${runId}/exports?type=xml`, { token: TEST_KEY }),
+      ctx({ run_id: runId }),
+    );
+    expect(res.status).toBe(422);
   });
 });
 

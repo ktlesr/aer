@@ -16,26 +16,13 @@ export async function POST(
     const run = await requireRun(run_id, auth);
 
     const type = new URL(request.url).searchParams.get("type") ?? "json";
-
-    if (type === "pdf") {
-      // PDF export is a placeholder for MVP — created as pending, not generated.
-      const exp = await prisma.auditExport.create({
-        data: {
-          organizationId: auth.organizationId,
-          projectId: auth.projectId,
-          runId: run.id,
-          type: "pdf",
-          status: "pending",
-        },
-      });
-      return jsonOk({ export: serializeExport(exp) }, 202, requestId);
-    }
-
-    if (type !== "json") {
+    if (type !== "json" && type !== "pdf") {
       // Do not echo the caller-supplied type — it could contain a key/PII.
       throw new ApiError("validation_error", "Unsupported export type", 422);
     }
 
+    // Both formats store the same redacted, hash-anchored JSON packet. PDF is rendered from that
+    // stored packet at download time, so the two share one content_hash and no binary is persisted.
     const scope = {
       runId: run.id,
       organizationId: auth.organizationId,
@@ -53,7 +40,7 @@ export async function POST(
         organizationId: auth.organizationId,
         projectId: auth.projectId,
         runId: run.id,
-        type: "json",
+        type,
         status: "ready",
         contentHash: packet.export.content_hash,
         packet: toJsonInput(packet),

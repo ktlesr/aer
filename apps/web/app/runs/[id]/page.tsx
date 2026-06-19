@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, FileText } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { RiskBadge } from "@/components/risk-badge";
 import { Timeline, type TimelineEvent } from "@/components/timeline";
@@ -67,13 +67,22 @@ export default async function RunDetailPage({
           </h1>
           <p className="mt-2 font-mono text-xs text-muted-foreground">{run.id}</p>
         </div>
-        <a
-          href={`/runs/${run.id}/download`}
-          download
-          className="group inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-[var(--shadow-soft)] outline-none transition-all hover:-translate-y-px hover:opacity-95 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-0"
-        >
-          <Download className="size-4 transition-transform group-hover:translate-y-px" /> Download audit packet
-        </a>
+        <div className="flex items-center gap-2.5">
+          <a
+            href={`/runs/${run.id}/download?format=pdf`}
+            download
+            className="group inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-foreground outline-none transition-all hover:-translate-y-px hover:border-foreground/30 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-0"
+          >
+            <FileText className="size-4 transition-transform group-hover:translate-y-px" /> PDF
+          </a>
+          <a
+            href={`/runs/${run.id}/download`}
+            download
+            className="group inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-[var(--shadow-soft)] outline-none transition-all hover:-translate-y-px hover:opacity-95 focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-0"
+          >
+            <Download className="size-4 transition-transform group-hover:translate-y-px" /> JSON packet
+          </a>
+        </div>
       </div>
 
       {/* ruled stat strip */}
