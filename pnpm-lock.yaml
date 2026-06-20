@@ -133,6 +133,18 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  packages/evidence-chain:
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@types/node@20.19.43)(vite@8.0.16(@types/node@20.19.43)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4))
+
 packages:
 
   '@alloc/quick-lru@5.2.0':
