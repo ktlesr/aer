@@ -8,7 +8,8 @@ import {
   Font,
   renderToBuffer,
 } from "@react-pdf/renderer";
-import type { AuditPacket } from "./packet";
+import { verifyChain } from "@ktlsr/evidence-chain";
+import { type AuditPacket, packetSeal, packetToChainLinks } from "./packet";
 import { formatCost, formatDuration } from "@/lib/format";
 
 // The PDF is the human-readable view of the SAME audit packet the JSON export carries — it shows
@@ -140,8 +141,21 @@ function Cell({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+/** Derive the chain verdict from the packet alone, via the same shared verifier. */
+function chainVerdict(packet: AuditPacket): { label: string; color: string } {
+  const v = verifyChain(packetToChainLinks(packet), packetSeal(packet), packet.run.id);
+  if (v.ok) {
+    return packet.seal === null
+      ? { label: "Sealing pending", color: MUTED }
+      : { label: `Chain verified · ${v.checkedCount} events`, color: SEAL };
+  }
+  if (v.status === "legacy") return { label: "Legacy · unchained", color: MUTED };
+  return { label: `Chain BROKEN at seq ${v.brokenSeq}`, color: SEVERITY_COLOR.high };
+}
+
 function AuditDocument({ packet }: { packet: AuditPacket }) {
   const { run, events, redaction_findings, export: exp } = packet;
+  const chain = chainVerdict(packet);
   return (
     <Document
       title={`Audit packet ${run.id}`}
@@ -175,6 +189,8 @@ function AuditDocument({ packet }: { packet: AuditPacket }) {
         <View style={{ marginTop: 6 }}>
           <Text style={s.sectionLabel}>Integrity</Text>
           <View style={s.seal}>
+            <Text style={[s.sealHashLabel, { color: chain.color }]}>Chain verification</Text>
+            <Text style={[s.sealHash, { color: chain.color, marginBottom: 8 }]}>{chain.label}</Text>
             <Text style={s.sealHashLabel}>Content hash</Text>
             <Text style={s.sealHash}>{exp.content_hash}</Text>
             <View style={s.sealMeta}>
