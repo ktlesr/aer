@@ -1,0 +1,26 @@
+{
+  "name": "@ktlsr/evidence-chain",
+  "version": "0.1.0",
+  "description": "Dependency-free, framework-agnostic evidence hash chain: canonicalize, hash, computeChain, verifyChain. Verifiable without trusting the operator.",
+  "license": "MIT",
+  "author": "ktlesr",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5",
+    "vitest": "^4.1.8"
+  }
+}

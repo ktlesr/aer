@@ -8,6 +8,7 @@
 import "dotenv/config";
 import { createHash } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { computeChain, type EventCore } from "@ktlsr/evidence-chain";
 import { PrismaClient } from "../app/generated/prisma/client";
 
 const sha256 = (value: string): string =>
@@ -154,7 +155,58 @@ const EVENTS: SeedEvent[] = [
   },
 ];
 
+// Redaction findings for the demo run. Defined here (not inline) so they can also feed the chain
+// core for evt_2 — a finding is part of its event's hash.
+const FINDINGS = [
+  {
+    id: "find_email",
+    eventId: "evt_2",
+    findingType: "email" as const,
+    severity: "medium" as const,
+    fieldPath: "input.customer.email",
+    originalHash: sha256(RAW_EMAIL),
+    createdAt: at(18),
+  },
+  {
+    id: "find_phone",
+    eventId: "evt_2",
+    findingType: "phone" as const,
+    severity: "medium" as const,
+    fieldPath: "input.customer.phone",
+    originalHash: sha256(RAW_PHONE),
+    createdAt: at(18),
+  },
+];
+
+// Build the chain exactly as the write path would, so `pnpm verify:run run_demo` reports PASS.
+function buildChain() {
+  const cores: EventCore[] = EVENTS.map((e) => ({
+    seq: e.seq,
+    type: e.type,
+    title: e.title,
+    occurredAt: at(e.offset).toISOString(),
+    inputRedacted: e.inputRedacted ?? null,
+    outputRedacted: e.outputRedacted ?? null,
+    riskLevel: e.riskLevel ?? null,
+    costMicroUsd: e.costMicroUsd ?? null,
+    metadata: e.metadata ?? null,
+    findings: FINDINGS.filter((f) => f.eventId === e.id).map((f) => ({
+      findingType: f.findingType,
+      severity: f.severity,
+      fieldPath: f.fieldPath,
+      originalHash: f.originalHash,
+    })),
+  }));
+  const links = computeChain(RUN_ID, cores);
+  return {
+    linkBySeq: new Map(links.map((l) => [l.seq, l])),
+    seal: links[links.length - 1].hash,
+  };
+}
+
 async function main(): Promise<void> {
+  const { linkBySeq, seal } = buildChain();
+
   // Idempotency: remove the demo org; FK cascades drop project, key, run, events, findings, exports.
   await prisma.organization.deleteMany({ where: { id: ORG_ID } });
 
@@ -198,6 +250,7 @@ async function main(): Promise<void> {
       eventCount: EVENTS.length,
       redactionCount: 2,
       metadata: { scenario: "customer_data_deletion", env: "demo" },
+      seal,
     },
   });
 
@@ -216,36 +269,24 @@ async function main(): Promise<void> {
       riskLevel: e.riskLevel ?? undefined,
       costMicroUsd: e.costMicroUsd ?? undefined,
       metadata: e.metadata ?? undefined,
+      hash: linkBySeq.get(e.seq)?.hash,
+      prevHash: linkBySeq.get(e.seq)?.prevHash,
     })),
   });
 
   await prisma.redactionFinding.createMany({
-    data: [
-      {
-        id: "find_email",
-        organizationId: ORG_ID,
-        projectId: PROJECT_ID,
-        runId: RUN_ID,
-        eventId: "evt_2",
-        findingType: "email",
-        severity: "medium",
-        fieldPath: "input.customer.email",
-        originalHash: sha256(RAW_EMAIL),
-        createdAt: at(18),
-      },
-      {
-        id: "find_phone",
-        organizationId: ORG_ID,
-        projectId: PROJECT_ID,
-        runId: RUN_ID,
-        eventId: "evt_2",
-        findingType: "phone",
-        severity: "medium",
-        fieldPath: "input.customer.phone",
-        originalHash: sha256(RAW_PHONE),
-        createdAt: at(18),
-      },
-    ],
+    data: FINDINGS.map((f) => ({
+      id: f.id,
+      organizationId: ORG_ID,
+      projectId: PROJECT_ID,
+      runId: RUN_ID,
+      eventId: f.eventId,
+      findingType: f.findingType,
+      severity: f.severity,
+      fieldPath: f.fieldPath,
+      originalHash: f.originalHash,
+      createdAt: f.createdAt,
+    })),
   });
 
   await prisma.auditExport.create({

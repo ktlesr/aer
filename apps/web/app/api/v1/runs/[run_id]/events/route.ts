@@ -10,6 +10,7 @@ import {
   toJsonInput,
 } from "@/lib/api/helpers";
 import { createEventSchema, parseBody } from "@/lib/validation/schemas";
+import { genesisHash, hashEvent, type EventCore } from "@ktlsr/evidence-chain";
 
 export async function POST(
   request: Request,
@@ -54,8 +55,37 @@ export async function POST(
     });
 
     const seq = data.seq ?? run.eventCount + 1;
+    // Stamp occurredAt here (not via the DB default) so the value that goes into the hash is
+    // exactly the value that gets stored — otherwise the chain could never be re-verified.
+    const occurredAt = new Date();
 
     const event = await prisma.$transaction(async (tx) => {
+      // Append-only chain: link to the current head (highest seq so far), or genesis for the first.
+      const head = await tx.agentEvent.findFirst({
+        where: { runId: run.id },
+        orderBy: { seq: "desc" },
+        select: { hash: true },
+      });
+      const prevHash = head?.hash ?? genesisHash(run.id);
+      const core: EventCore = {
+        seq,
+        type: data.type,
+        title: values.title as string,
+        occurredAt: occurredAt.toISOString(),
+        inputRedacted: toJsonInput(values.input) ?? null,
+        outputRedacted: toJsonInput(values.output) ?? null,
+        riskLevel: data.riskLevel ?? null,
+        costMicroUsd: data.costMicroUsd ?? null,
+        metadata: toJsonInput(values.metadata) ?? null,
+        findings: findings.map((f) => ({
+          findingType: f.findingType,
+          severity: f.severity,
+          fieldPath: f.fieldPath,
+          originalHash: f.originalHash,
+        })),
+      };
+      const hash = hashEvent(prevHash, core);
+
       const created = await tx.agentEvent.create({
         data: {
           organizationId: auth.organizationId,
@@ -64,11 +94,14 @@ export async function POST(
           seq,
           type: data.type,
           title: values.title as string,
+          occurredAt,
           inputRedacted: toJsonInput(values.input),
           outputRedacted: toJsonInput(values.output),
           riskLevel: data.riskLevel,
           costMicroUsd: data.costMicroUsd,
           metadata: toJsonInput(values.metadata),
+          hash,
+          prevHash,
         },
       });
 
