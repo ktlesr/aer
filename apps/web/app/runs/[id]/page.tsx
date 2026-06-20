@@ -5,9 +5,11 @@ import { StatusBadge } from "@/components/status-badge";
 import { RiskBadge } from "@/components/risk-badge";
 import { Timeline, type TimelineEvent } from "@/components/timeline";
 import { RawJsonViewer } from "@/components/raw-json-viewer";
-import { HashSeal } from "@/components/hash-seal";
+import { HashSeal, type ChainStatus } from "@/components/hash-seal";
+import { verifyChain } from "@ktlsr/evidence-chain";
 import { getRunDetail } from "@/lib/dashboard/queries";
 import { evidenceDigest } from "@/lib/audit/packet";
+import { toChainLink } from "@/lib/audit/chainAdapter";
 import { formatCost, formatDateTime, formatDuration } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +33,20 @@ export default async function RunDetailPage({
   if (!run) notFound();
 
   const digest = evidenceDigest(run, run.events, run.findings);
+
+  // Re-verify the chain server-side through the SAME pure verifier the packet and CLI use.
+  const verify = verifyChain(
+    run.events.map((e) => toChainLink(e, run.findings)),
+    run.seal,
+    run.id,
+  );
+  const chainStatus: ChainStatus = verify.ok
+    ? run.seal === null
+      ? { kind: "pending" }
+      : { kind: "verified", count: verify.checkedCount }
+    : verify.status === "legacy"
+      ? { kind: "legacy" }
+      : { kind: "broken", brokenSeq: verify.brokenSeq };
 
   const findingCountByEvent = run.findings.reduce<Record<string, number>>((acc, f) => {
     if (f.eventId) acc[f.eventId] = (acc[f.eventId] ?? 0) + 1;
@@ -118,7 +134,7 @@ export default async function RunDetailPage({
         <aside className="space-y-9">
           <section>
             <h2 className="mb-3 font-display text-base font-semibold tracking-tight">Evidence seal</h2>
-            <HashSeal digest={digest} />
+            <HashSeal digest={digest} chain={chainStatus} />
           </section>
 
           <section>
