@@ -143,6 +143,9 @@ model AgentRun {
   eventCount     Int       @default(0)
   redactionCount Int       @default(0)
   metadata       Json?
+  // Evidence chain: frozen chain head, written at complete (completed | failed). Null while
+  // running and for legacy (pre-chain) runs. See docs/EVIDENCE_INTEGRITY.md.
+  seal           String?
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project      Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
@@ -169,6 +172,10 @@ model AgentEvent {
   riskLevel      RiskLevel?
   costMicroUsd   Int?
   metadata       Json?
+  // Evidence chain (append-only). hash = sha256(prevHash + canonical(core)); prevHash links to the
+  // previous event (genesis for the first). Nullable for legacy rows. See docs/EVIDENCE_INTEGRITY.md.
+  hash           String?
+  prevHash       String?
 
   run      AgentRun           @relation(fields: [runId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Cascade)
   findings RedactionFinding[]
