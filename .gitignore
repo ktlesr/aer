@@ -23,6 +23,8 @@ build/
 *.dump
 *.dump.gz
 *.backup
+# ...but Prisma migration SQL MUST be tracked (it ships in the prod image and runs on deploy).
+!**/prisma/migrations/**/*.sql
 
 # Logs
 *.log
