@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { buildAuditPacket } from "./packet";
+import { computeChain, verifyChain } from "@ktlsr/evidence-chain";
+import { buildAuditPacket, packetSeal, packetToChainLinks } from "./packet";
+import { toEventCore } from "./chainAdapter";
 import type {
   AgentEvent,
   AgentRun,
@@ -82,5 +84,37 @@ describe("buildAuditPacket", () => {
     const serialized = JSON.stringify(packet);
     expect(serialized).toContain("[REDACTED_EMAIL]");
     expect(serialized).not.toContain("@");
+  });
+});
+
+// A packet stamped with a real chain must verify from its own bytes (offline, no DB).
+function chained() {
+  const cores = events.map((e) => toEventCore(e, findings));
+  const links = computeChain(run.id, cores);
+  const chainedEvents = events.map((e, i) => ({
+    ...e,
+    hash: links[i].hash,
+    prevHash: links[i].prevHash,
+  })) as unknown as AgentEvent[];
+  const chainedRun = { ...run, seal: links[links.length - 1].hash } as unknown as AgentRun;
+  return { chainedEvents, chainedRun };
+}
+
+describe("buildAuditPacket — self-verifying chain", () => {
+  it("verifies from the packet alone", () => {
+    const { chainedEvents, chainedRun } = chained();
+    const packet = buildAuditPacket(chainedRun, chainedEvents, findings, gen);
+    expect(packet.schema_version).toBe("1.1");
+    expect(packet.chain.algorithm).toBe("sha256");
+    const res = verifyChain(packetToChainLinks(packet), packetSeal(packet), packet.run.id);
+    expect(res).toMatchObject({ ok: true, status: "verified" });
+  });
+
+  it("fails verification when a packet event is tampered", () => {
+    const { chainedEvents, chainedRun } = chained();
+    const packet = buildAuditPacket(chainedRun, chainedEvents, findings, gen);
+    packet.events[0].title = "tampered";
+    const res = verifyChain(packetToChainLinks(packet), packetSeal(packet), packet.run.id);
+    expect(res.ok).toBe(false);
   });
 });

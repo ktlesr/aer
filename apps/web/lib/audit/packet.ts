@@ -1,9 +1,17 @@
 import { createHash } from "node:crypto";
+import { genesisHash, type ChainLink } from "@ktlsr/evidence-chain";
 import type {
   AgentEvent,
   AgentRun,
   RedactionFinding,
 } from "@/app/generated/prisma/client";
+
+interface PacketFinding {
+  findingType: string;
+  severity: string;
+  fieldPath: string;
+  originalHash: string;
+}
 
 export interface AuditPacket {
   schema_version: string;
@@ -29,19 +37,25 @@ export interface AuditPacket {
     riskLevel: string | null;
     costMicroUsd: number | null;
     metadata: unknown;
+    // Evidence chain: per-event links, sha256:-prefixed. Null for legacy (pre-chain) runs.
+    hash: string | null;
+    prevHash: string | null;
+    // Findings that went into this event's hash (raw values never present — only the hash).
+    findings: PacketFinding[];
   }>;
-  redaction_findings: Array<{
-    findingType: string;
-    severity: string;
-    fieldPath: string;
-    originalHash: string;
-  }>;
+  redaction_findings: Array<PacketFinding>;
+  // Chain anchor — lets a third party re-verify the packet offline (see docs/EVIDENCE_INTEGRITY.md).
+  chain: { algorithm: "sha256"; genesis: string };
+  seal: string | null;
   export: {
     type: "json";
     generatedAt: string;
     content_hash: string;
   };
 }
+
+const withPrefix = (hex: string): string => `sha256:${hex}`;
+const stripPrefix = (v: string): string => v.replace(/^sha256:/, "");
 
 const jsonOrNull = (v: unknown): unknown => (v === undefined ? null : v);
 
@@ -96,8 +110,16 @@ export function buildAuditPacket(
   findings: RedactionFinding[],
   generatedAt: Date,
 ): AuditPacket {
+  const toPacketFinding = (f: RedactionFinding): PacketFinding => ({
+    findingType: f.findingType,
+    severity: f.severity,
+    fieldPath: f.fieldPath,
+    // DB stores raw 64-hex; present with an algorithm prefix in the packet.
+    originalHash: withPrefix(f.originalHash),
+  });
+
   const base: Omit<AuditPacket, "export"> & { export: Omit<AuditPacket["export"], "content_hash"> } = {
-    schema_version: "1.0",
+    schema_version: "1.1",
     run: {
       id: run.id,
       agentName: run.agentName,
@@ -120,14 +142,13 @@ export function buildAuditPacket(
       riskLevel: e.riskLevel ?? null,
       costMicroUsd: e.costMicroUsd ?? null,
       metadata: jsonOrNull(e.metadata),
+      hash: e.hash ? withPrefix(e.hash) : null,
+      prevHash: e.prevHash ? withPrefix(e.prevHash) : null,
+      findings: findings.filter((f) => f.eventId === e.id).map(toPacketFinding),
     })),
-    redaction_findings: findings.map((f) => ({
-      findingType: f.findingType,
-      severity: f.severity,
-      fieldPath: f.fieldPath,
-      // DB stores raw 64-hex; present with an algorithm prefix in the packet.
-      originalHash: `sha256:${f.originalHash}`,
-    })),
+    redaction_findings: findings.map(toPacketFinding),
+    chain: { algorithm: "sha256", genesis: withPrefix(genesisHash(run.id)) },
+    seal: run.seal ? withPrefix(run.seal) : null,
     export: {
       type: "json",
       generatedAt: generatedAt.toISOString(),
@@ -142,4 +163,36 @@ export function buildAuditPacket(
     ...base,
     export: { ...base.export, content_hash: `sha256:${contentHash}` },
   };
+}
+
+/**
+ * Reconstruct the chain links from a packet alone — the basis for offline verification. Strips the
+ * `sha256:` presentation prefix so the bytes match what the writer hashed. Pair with
+ * `verifyChain(links, packetSeal(packet), packet.run.id)`.
+ */
+export function packetToChainLinks(packet: AuditPacket): ChainLink[] {
+  return packet.events.map((e) => ({
+    seq: e.seq,
+    type: e.type,
+    title: e.title,
+    occurredAt: e.occurredAt,
+    inputRedacted: e.inputRedacted ?? null,
+    outputRedacted: e.outputRedacted ?? null,
+    riskLevel: e.riskLevel ?? null,
+    costMicroUsd: e.costMicroUsd ?? null,
+    metadata: e.metadata ?? null,
+    findings: e.findings.map((f) => ({
+      findingType: f.findingType,
+      severity: f.severity,
+      fieldPath: f.fieldPath,
+      originalHash: stripPrefix(f.originalHash),
+    })),
+    hash: e.hash ? stripPrefix(e.hash) : "",
+    prevHash: e.prevHash ? stripPrefix(e.prevHash) : "",
+  }));
+}
+
+/** The packet seal as raw hex for verifyChain (null while the run was still running). */
+export function packetSeal(packet: AuditPacket): string | null {
+  return packet.seal ? stripPrefix(packet.seal) : null;
 }
