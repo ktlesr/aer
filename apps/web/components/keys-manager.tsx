@@ -5,6 +5,7 @@ import { Check, Copy, KeyRound, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createKeyAction, revokeKeyAction, type CreateKeyState } from "@/lib/auth/actions";
+import { LocalTime } from "@/components/local-time";
 
 /** Shows the freshly minted key with a click-to-copy button. Remounted per key (resets state). */
 function NewKeyCallout({ apiKey }: { apiKey: string }) {
@@ -104,8 +105,15 @@ export function KeysManager({ keys }: { keys: KeyRow[] }) {
                     ) : null}
                   </div>
                   <div className="mt-0.5 font-mono text-xs text-muted-foreground">
-                    {k.prefix}… · created {k.createdAt}
-                    {k.lastUsedAt ? ` · last used ${k.lastUsedAt}` : " · never used"}
+                    {k.prefix}… · created <LocalTime iso={k.createdAt} />
+                    {k.lastUsedAt ? (
+                      <>
+                        {" · last used "}
+                        <LocalTime iso={k.lastUsedAt} />
+                      </>
+                    ) : (
+                      " · never used"
+                    )}
                   </div>
                 </div>
                 {!k.revoked ? (

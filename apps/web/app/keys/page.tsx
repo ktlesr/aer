@@ -1,6 +1,5 @@
 import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { listApiKeys } from "@/lib/auth/api-keys";
-import { formatDateTime } from "@/lib/format";
 import { KeysManager, type KeyRow } from "@/components/keys-manager";
 import { SdkUsage } from "@/components/sdk-usage";
 
@@ -18,8 +17,8 @@ export default async function KeysPage() {
     id: k.id,
     name: k.name,
     prefix: k.prefix,
-    createdAt: formatDateTime(k.createdAt),
-    lastUsedAt: k.lastUsedAt ? formatDateTime(k.lastUsedAt) : null,
+    createdAt: k.createdAt.toISOString(),
+    lastUsedAt: k.lastUsedAt ? k.lastUsedAt.toISOString() : null,
     revoked: k.revokedAt !== null,
   }));
 

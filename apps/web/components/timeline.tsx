@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, ShieldAlert } from "lucide-react";
 import { RiskBadge } from "@/components/risk-badge";
-import { formatCost, formatDateTime, formatEventType } from "@/lib/format";
+import { formatCost, formatEventType } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 
 export interface TimelineEvent {
   id: string;
@@ -74,7 +75,7 @@ function EventRow({ event, index }: { event: TimelineEvent; index: number }) {
         <div className="mt-1.5 font-medium">{event.title}</div>
 
         <div className="mt-1 font-mono text-xs text-muted-foreground">
-          {formatDateTime(event.occurredAt)}
+          <LocalTime iso={event.occurredAt} />
           {event.costMicroUsd ? <span> · {formatCost(event.costMicroUsd)}</span> : null}
           <span className="text-muted-foreground/70">
             {" "}

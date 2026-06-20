@@ -6,7 +6,8 @@ import { FirstRunGuide } from "@/components/first-run-guide";
 import { listRuns, getRunStats, RUNS_PAGE_SIZE, RUNS_PAGE_SIZES } from "@/lib/dashboard/queries";
 import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { listApiKeys } from "@/lib/auth/api-keys";
-import { formatCost, formatDateTime, formatDuration } from "@/lib/format";
+import { formatCost, formatDuration } from "@/lib/format";
+import { LocalTime } from "@/components/local-time";
 
 export const dynamic = "force-dynamic";
 
@@ -120,7 +121,7 @@ export default async function RunsPage({
                       <RiskBadge risk={run.riskLevel} />
                     </td>
                     <td className="px-4 py-3.5 font-mono text-xs text-muted-foreground">
-                      {formatDateTime(run.startedAt)}
+                      <LocalTime iso={run.startedAt.toISOString()} />
                     </td>
                     <td className="px-4 py-3.5 text-right font-mono tabular-nums">
                       {formatDuration(run.durationMs)}
