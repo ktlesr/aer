@@ -13,6 +13,7 @@
     "key:create": "pnpm --filter web exec tsx scripts/create-key.ts",
     "e2e:demo": "pnpm --filter web exec tsx scripts/e2e-demo.ts",
     "prune:runs": "pnpm --filter web exec tsx scripts/prune-runs.ts",
+    "verify:run": "pnpm --filter web exec tsx scripts/verify-run.ts",
     "test": "pnpm --filter web test"
   },
   "engines": {
