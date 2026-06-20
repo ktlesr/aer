@@ -4,6 +4,7 @@ import { makeRequestId } from "@/lib/api/errors";
 import { jsonOk, toErrorResponse } from "@/lib/api/respond";
 import { readJson, requireRun, serializeRun } from "@/lib/api/helpers";
 import { completeRunSchema, parseBody } from "@/lib/validation/schemas";
+import { genesisHash } from "@ktlsr/evidence-chain";
 
 export async function POST(
   request: Request,
@@ -25,11 +26,19 @@ export async function POST(
       organizationId: auth.organizationId,
       projectId: auth.projectId,
     };
-    const [eventCount, redactionCount, costAgg] = await Promise.all([
+    const [eventCount, redactionCount, costAgg, head] = await Promise.all([
       prisma.agentEvent.count({ where: scope }),
       prisma.redactionFinding.count({ where: scope }),
       prisma.agentEvent.aggregate({ where: scope, _sum: { costMicroUsd: true } }),
+      prisma.agentEvent.findFirst({
+        where: scope,
+        orderBy: { seq: "desc" },
+        select: { hash: true },
+      }),
     ]);
+
+    // Freeze the chain head as the seal. An empty run seals to genesis (a valid 0-event chain).
+    const seal = head?.hash ?? genesisHash(run.id);
 
     const updated = await prisma.agentRun.update({
       where: {
@@ -46,6 +55,7 @@ export async function POST(
         eventCount,
         redactionCount,
         costMicroUsd: costAgg._sum.costMicroUsd ?? 0,
+        seal,
       },
     });
 
