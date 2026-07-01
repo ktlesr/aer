@@ -57,6 +57,23 @@ function redactValue(
     return redacted;
   }
 
+  if (typeof value === "number") {
+    // A card/SSN sent as a JSON *number* (e.g. {"card": 4111111111111111}) would otherwise
+    // bypass string-only detection. Coerce to string and run the detectors; only redact (and
+    // change the leaf to a token) when something actually matches — plain numbers stay numbers.
+    const { value: redacted, matches } = redactString(String(value));
+    if (matches.length === 0) return value;
+    for (const m of matches) {
+      findings.push({
+        findingType: m.findingType,
+        severity: m.severity,
+        fieldPath: path,
+        originalHash: sha256(m.raw),
+      });
+    }
+    return redacted;
+  }
+
   if (Array.isArray(value)) {
     return value.map((item, i) => redactValue(item, `${path}[${i}]`, findings));
   }
@@ -64,12 +81,24 @@ function redactValue(
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(value)) {
-      out[key] = redactValue(val, joinPath(path, key), findings);
+      // Object *keys* can be sensitive too (per-email / per-token maps). Redact the key itself;
+      // the field path uses the already-redacted key so no raw value leaks into a finding path.
+      const { value: redactedKey, matches } = redactString(key);
+      const keyPath = joinPath(path, redactedKey);
+      for (const m of matches) {
+        findings.push({
+          findingType: m.findingType,
+          severity: m.severity,
+          fieldPath: keyPath,
+          originalHash: sha256(m.raw),
+        });
+      }
+      out[redactedKey] = redactValue(val, keyPath, findings);
     }
     return out;
   }
 
-  // number, boolean, null, undefined, etc. — left untouched.
+  // boolean, null, undefined, etc. — left untouched.
   return value;
 }
 

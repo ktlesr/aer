@@ -61,6 +61,14 @@ export const PATTERNS: RedactionPattern[] = [
     token: "[REDACTED_API_KEY]",
     regex: /\b[a-z]{2,}_(?:live|test|demo)_[A-Za-z0-9]{16,}\b/g,
   },
+  // Our own minted keys: `aer_<32-hex>` (no live/test/demo infix — see lib/auth/api-keys.ts).
+  // The highest-value secret in the system; must be caught if it lands in event data.
+  {
+    findingType: "api_key",
+    severity: "high",
+    token: "[REDACTED_API_KEY]",
+    regex: /\baer_[A-Za-z0-9]{24,}\b/g,
+  },
   // Credit-card-like: 13–19 digits with optional spaces/dashes, validated by Luhn.
   {
     findingType: "credit_card",

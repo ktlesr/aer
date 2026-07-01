@@ -60,6 +60,14 @@ describe("redactJson — per-pattern detection", () => {
     expect(findingFor(findings, "key")?.findingType).toBe("api_key");
   });
 
+  it("redacts our own aer_<hex> minted key format", () => {
+    const raw = "aer_a1b2c3d4e5f60718293a4b5c6d7e8f90";
+    const { redacted, findings } = redactJson({ note: `my key is ${raw}` });
+    expect((redacted as { note: string }).note).toBe("my key is [REDACTED_API_KEY]");
+    expect(findingFor(findings, "note")?.findingType).toBe("api_key");
+    expect(findingFor(findings, "note")?.originalHash).toBe(sha256(raw));
+  });
+
   it("redacts a JWT/bearer token as high severity", () => {
     const raw =
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
@@ -157,7 +165,7 @@ describe("redactJson — safety invariants", () => {
     expect(input.email).toBe("jane.doe@example.com");
   });
 
-  it("leaves non-string scalar types untouched", () => {
+  it("leaves non-sensitive scalar types untouched", () => {
     const { redacted, findings } = redactJson({
       n: 42,
       b: true,
@@ -166,6 +174,26 @@ describe("redactJson — safety invariants", () => {
     });
     expect(redacted).toEqual({ n: 42, b: true, z: null, s: "nothing sensitive here" });
     expect(findings).toHaveLength(0);
+  });
+
+  it("redacts a sensitive value sent as a JSON number (not a string)", () => {
+    const { redacted, findings } = redactJson({ card: 4111111111111111, ssn: 12345678901 });
+    const r = redacted as { card: string; ssn: string };
+    expect(r.card).toBe("[REDACTED_CREDIT_CARD]");
+    expect(r.ssn).toBe("[REDACTED_NATIONAL_ID]");
+    expect(findingFor(findings, "card")?.findingType).toBe("credit_card");
+    expect(findingFor(findings, "ssn")?.findingType).toBe("national_id");
+    expect(findingFor(findings, "card")?.originalHash).toBe(sha256("4111111111111111"));
+  });
+
+  it("redacts a sensitive value used as an object KEY", () => {
+    const email = "jane.doe@example.com";
+    const { redacted, findings } = redactJson({ [email]: "x" });
+    expect(redacted).toEqual({ "[REDACTED_EMAIL]": "x" });
+    expect(findingFor(findings, "[REDACTED_EMAIL]")?.findingType).toBe("email");
+    expect(findingFor(findings, "[REDACTED_EMAIL]")?.originalHash).toBe(sha256(email));
+    expect(JSON.stringify(redacted)).not.toContain("jane.doe");
+    expect(JSON.stringify(findings)).not.toContain("jane.doe");
   });
 
   it("is idempotent — re-redacting produces no new findings", () => {
