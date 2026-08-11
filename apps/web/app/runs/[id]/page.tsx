@@ -6,8 +6,10 @@ import { RiskBadge } from "@/components/risk-badge";
 import { Timeline, type TimelineEvent } from "@/components/timeline";
 import { RawJsonViewer } from "@/components/raw-json-viewer";
 import { HashSeal, type ChainStatus } from "@/components/hash-seal";
+import { RunPager } from "@/components/run-pager";
 import { verifyChain } from "@ktlsr/evidence-chain";
-import { getRunDetail } from "@/lib/dashboard/queries";
+import { getRunDetail, getRunNeighbors } from "@/lib/dashboard/queries";
+import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { evidenceDigest } from "@/lib/audit/packet";
 import { toChainLink } from "@/lib/audit/chainAdapter";
 import { formatCost, formatDateTime, formatDuration } from "@/lib/format";
@@ -29,8 +31,13 @@ export default async function RunDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const run = await getRunDetail(id);
+  // One authorization boundary for the whole page: the resolved tenant scopes the run itself and
+  // its neighbours alike, so the pager can only ever point at runs this session may open.
+  const scope = await requireDashboardAccess();
+  const run = await getRunDetail(scope, id);
   if (!run) notFound();
+
+  const { newer, older } = await getRunNeighbors(scope, run);
 
   const digest = evidenceDigest(run, run.events, run.findings);
 
@@ -68,12 +75,15 @@ export default async function RunDetailPage({
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
-      <Link
-        href="/runs"
-        className="inline-flex items-center gap-1.5 rounded-sm font-mono text-[0.66rem] font-medium uppercase tracking-wider text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
-      >
-        <ArrowLeft className="size-3.5" /> All runs
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link
+          href="/runs"
+          className="inline-flex items-center gap-1.5 rounded-sm font-mono text-[0.66rem] font-medium uppercase tracking-wider text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <ArrowLeft className="size-3.5" /> All runs
+        </Link>
+        <RunPager newer={newer} older={older} />
+      </div>
 
       <div className="animate-rise mt-4 flex flex-wrap items-end justify-between gap-5">
         <div>
