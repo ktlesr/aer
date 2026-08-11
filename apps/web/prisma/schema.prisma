@@ -143,6 +143,9 @@ model AgentRun {
   eventCount     Int       @default(0)
   redactionCount Int       @default(0)
   metadata       Json?
+  // Legal hold: a run that is itself under investigation must survive retention pruning, so
+  // scripts/prune-runs.ts skips it no matter how old it is. Cleared manually when the hold ends.
+  legalHold      Boolean   @default(false)
   // Evidence chain: frozen chain head, written at complete (completed | failed). Null while
   // running and for legacy (pre-chain) runs. See docs/EVIDENCE_INTEGRITY.md.
   seal           String?
