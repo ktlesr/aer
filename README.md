@@ -11,7 +11,7 @@ hash-anchored **audit packet**.
 apps/web              Next.js (App Router) + TS strict + Tailwind + shadcn/ui + Prisma
 packages/collector-js Collector SDK (startRun / run.event / run.complete)
 packages/demo-agent   Customer Data Deletion demo agent
-docs/                 PRODUCT, MVP_SPEC, DATA_MODEL, API_CONTRACT, SECURITY
+docs/                 PRODUCT.md (product positioning)
 ```
 
 ## Prerequisites
@@ -30,6 +30,8 @@ pnpm demo                    # run the demo agent end-to-end
 ```
 
 ## Docs
-Product/spec/data-model/API/security live in [`docs/`](docs). Agent roles and review
-flow are in [`AGENTS.md`](AGENTS.md); the step-by-step build runbook is in
-[`RUNBOOK.md`](RUNBOOK.md). Project rules are in [`CLAUDE.md`](CLAUDE.md).
+Positioning and product direction: [`docs/PRODUCT.md`](docs/PRODUCT.md).
+
+The remaining documents (spec, data model, API contract, security notes, agent roles,
+build runbook, design system) are internal and deliberately kept out of this repository,
+so they are not linked here.
