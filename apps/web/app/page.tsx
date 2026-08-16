@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { SealMark } from "@/components/brand";
 import { HomeDashboard } from "@/components/home-dashboard";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import { auth } from "@/auth";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +17,45 @@ function GithubMark() {
   );
 }
 
-export const metadata = {
-  title: "Agent Evidence Recorder — audit-ready evidence for AI agent runs",
-  description:
-    "Turn every AI agent action — model calls, tool calls, approvals, redactions — into a chronological, hash-anchored evidence packet. Provable to an auditor, with no raw sensitive data stored.",
+export const metadata: Metadata = {
+  // Absolute so the landing page keeps its own headline instead of the "%s — AER" template.
+  title: { absolute: `${SITE_NAME} — audit-ready evidence for AI agent runs` },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+};
+
+/** Structured data so search engines read AER as a product, not a generic page. */
+const JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${SITE_URL}/#app`,
+      name: SITE_NAME,
+      applicationCategory: "DeveloperApplication",
+      applicationSubCategory: "AI governance & audit",
+      operatingSystem: "Web",
+      url: SITE_URL,
+      description: SITE_DESCRIPTION,
+      image: `${SITE_URL}/brand/og.png`,
+      featureList: [
+        "Chronological agent run timeline",
+        "Model, tool, human-approval and error events",
+        "Redaction findings stored as hashes only",
+        "Hash-anchored, append-only evidence chain",
+        "Portable JSON audit packet export",
+      ],
+      softwareHelp: "https://github.com/ktlesr/aer",
+    },
+    {
+      "@type": "WebSite",
+      "@id": `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: SITE_NAME,
+      description: SITE_DESCRIPTION,
+      inLanguage: "en",
+    },
+  ],
 };
 
 const CHAIN: { label: string; sealed?: boolean }[] = [
@@ -47,8 +85,16 @@ export default async function Home() {
   const session = await auth();
   if (session?.user?.id) return <HomeDashboard />;
 
+  // CSP is nonce-based with 'strict-dynamic', so the ld+json block needs the nonce too.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl flex-col px-6">
+      <script
+        type="application/ld+json"
+        nonce={nonce}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
+      />
       <header className="flex items-center justify-between py-6">
         <div className="flex items-center gap-2.5">
           <SealMark className="size-7" />

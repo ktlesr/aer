@@ -1,11 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AuthForm } from "@/components/auth-form";
 import { AuthShell } from "@/components/auth-shell";
+import { PRIVATE_PAGE } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Create account — Agent Evidence Recorder" };
+export const metadata: Metadata = { title: "Create account", ...PRIVATE_PAGE };
 
 export default async function SignupPage() {
   const session = await auth();

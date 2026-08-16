@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
@@ -8,10 +9,11 @@ import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { listApiKeys } from "@/lib/auth/api-keys";
 import { formatCost, formatDuration } from "@/lib/format";
 import { LocalTime } from "@/components/local-time";
+import { PRIVATE_PAGE, SITE_URL } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
-const BASE_URL = process.env.AUTH_URL ?? "https://aer.ktlsr.com";
+export const metadata: Metadata = { title: "Runs", ...PRIVATE_PAGE };
 
 export default async function RunsPage({
   searchParams,
@@ -46,7 +48,7 @@ export default async function RunsPage({
             packet. Three steps to your first one.
           </p>
         </header>
-        <FirstRunGuide hasKey={hasKey} baseUrl={BASE_URL} />
+        <FirstRunGuide hasKey={hasKey} baseUrl={SITE_URL} />
       </main>
     );
   }

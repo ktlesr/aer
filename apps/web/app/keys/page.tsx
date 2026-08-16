@@ -1,13 +1,13 @@
+import type { Metadata } from "next";
 import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { listApiKeys } from "@/lib/auth/api-keys";
 import { KeysManager, type KeyRow } from "@/components/keys-manager";
 import { SdkUsage } from "@/components/sdk-usage";
-
-const BASE_URL = process.env.AUTH_URL ?? "https://aer.ktlsr.com";
+import { PRIVATE_PAGE, SITE_URL } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "API Keys — Agent Evidence Recorder" };
+export const metadata: Metadata = { title: "API keys", ...PRIVATE_PAGE };
 
 export default async function KeysPage() {
   const scope = await requireDashboardAccess();
@@ -38,7 +38,7 @@ export default async function KeysPage() {
         <KeysManager keys={rows} />
       </div>
       <div className="animate-rise mt-10 border-t border-border/60 pt-8" style={{ animationDelay: "150ms" }}>
-        <SdkUsage baseUrl={BASE_URL} />
+        <SdkUsage baseUrl={SITE_URL} />
       </div>
     </main>
   );

@@ -4,8 +4,7 @@ import { AppHeader } from "@/components/app-header";
 import { SdkUsage } from "@/components/sdk-usage";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-
-const BASE_URL = process.env.AUTH_URL ?? "https://aer.ktlsr.com";
+import { SITE_URL } from "@/lib/site";
 
 /** Authenticated home at `/`: welcome, quick links, and the SDK usage guide. */
 export async function HomeDashboard() {
@@ -50,7 +49,7 @@ export async function HomeDashboard() {
         </header>
 
         <div className="animate-rise border-t border-border/60 pt-8" style={{ animationDelay: "70ms" }}>
-          <SdkUsage baseUrl={BASE_URL} />
+          <SdkUsage baseUrl={SITE_URL} />
         </div>
       </main>
     </div>

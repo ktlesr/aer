@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Download, FileText } from "lucide-react";
@@ -13,8 +14,11 @@ import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { evidenceDigest } from "@/lib/audit/packet";
 import { toChainLink } from "@/lib/audit/chainAdapter";
 import { formatCost, formatDateTime, formatDuration } from "@/lib/format";
+import { PRIVATE_PAGE } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = PRIVATE_PAGE;
 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (

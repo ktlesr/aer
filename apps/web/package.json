@@ -9,7 +9,8 @@
     "migrate:deploy": "prisma migrate deploy",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "brand:assets": "tsx scripts/generate-brand-assets.tsx"
   },
   "dependencies": {
     "@ktlsr/evidence-chain": "workspace:*",
