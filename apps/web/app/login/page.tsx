@@ -3,11 +3,11 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AuthForm } from "@/components/auth-form";
 import { AuthShell } from "@/components/auth-shell";
-import { PRIVATE_PAGE } from "@/lib/site";
-
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = { title: "Sign in", ...PRIVATE_PAGE };
+// Indexable on purpose: the page holds no tenant data, and a sign-in page search engines can
+// see reads as a real product. PRIVATE_PAGE stays for /runs and /keys.
+export const metadata: Metadata = { title: "Sign in", alternates: { canonical: "/login" } };
 
 export default async function LoginPage() {
   const session = await auth();

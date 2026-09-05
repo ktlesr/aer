@@ -7,7 +7,9 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
       // Everything behind auth (and the API) is tenant data — never crawlable.
-      disallow: ["/api/", "/runs", "/keys", "/login", "/signup"],
+      // /login and /signup are deliberately NOT here: a credential form a site hides from
+      // crawlers is a phishing signal. They hold no tenant data, so let them be seen.
+      disallow: ["/api/", "/runs", "/keys"],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,

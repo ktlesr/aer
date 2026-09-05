@@ -1,5 +1,6 @@
 import { ShieldCheck } from "lucide-react";
 import { SealMark } from "@/components/brand";
+import { SiteFooter } from "@/components/site-footer";
 
 // A quiet echo of the real evidence timeline — the brand signature, not decoration.
 const STEPS: { label: string; sealed?: boolean }[] = [
@@ -85,7 +86,11 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex items-center justify-center px-6 py-12">{children}</div>
+      <div className="flex flex-col justify-center px-6 py-12">
+        <div className="flex flex-1 items-center justify-center">{children}</div>
+        {/* Operator identity on the credential page itself — who runs this, how to reach them. */}
+        <SiteFooter className="mx-auto w-full max-w-sm" />
+      </div>
     </main>
   );
 }

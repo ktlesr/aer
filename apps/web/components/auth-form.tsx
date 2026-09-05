@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SealMark } from "@/components/brand";
 import { loginAction, signupAction, googleAction, type FormState } from "@/lib/auth/actions";
+import { SITE_NAME, SITE_OPERATOR } from "@/lib/site";
 
 function GoogleGlyph() {
   return (
@@ -62,6 +63,9 @@ export function AuthForm({
                 Continue with Google
               </Button>
             </form>
+            <p className="mt-2.5 text-center text-xs text-muted-foreground">
+              Google only shares your name and email address.
+            </p>
             <div className="my-5 flex items-center gap-3 font-mono text-[0.62rem] uppercase tracking-[0.2em] text-muted-foreground">
               <span className="h-px flex-1 bg-border" />
               or
@@ -113,6 +117,14 @@ export function AuthForm({
             {pending ? "Please wait…" : isSignup ? "Create account" : "Sign in"}
           </Button>
         </form>
+
+        {/* Who is asking for these credentials, and what for. A credential form with no
+            identifiable operator is what phishing classifiers flag. */}
+        <p className="mt-6 border-t border-border pt-4 text-xs leading-relaxed text-muted-foreground">
+          These credentials are for your {SITE_NAME} account only. The service is operated by{" "}
+          <span className="text-foreground">{SITE_OPERATOR}</span> and never asks for credentials to
+          any other service.
+        </p>
       </div>
 
       <p className="mt-5 text-center text-sm text-muted-foreground">

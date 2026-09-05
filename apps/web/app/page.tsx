@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { SealMark } from "@/components/brand";
 import { HomeDashboard } from "@/components/home-dashboard";
+import { SiteFooter } from "@/components/site-footer";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import { auth } from "@/auth";
 
@@ -209,12 +210,11 @@ export default async function Home() {
         </dl>
       </section>
 
-      <footer className="flex flex-col gap-1 border-t border-border/60 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-        <span>
-          Stored <span className="text-foreground">redacted</span> — raw sensitive values are never persisted.
-        </span>
-        <span className="font-mono">evidence packets are hash-anchored</span>
-      </footer>
+      <p className="mt-4 text-xs text-muted-foreground">
+        Stored <span className="text-foreground">redacted</span> — raw sensitive values are never
+        persisted. <span className="font-mono">Evidence packets are hash-anchored.</span>
+      </p>
+      <SiteFooter />
     </main>
   );
 }
