@@ -1,18 +1,28 @@
 # @ktlsr/collector-js
 
-Collector SDK for **[Agent Evidence Recorder](https://github.com/ktlesr/aer)** — record every critical action an AI agent takes (model calls, tool calls, human approvals, redactions, errors, outputs) as an **audit-ready, redacted evidence packet** over the AER v1 API.
+Collector SDK for **[Agent Evidence Recorder](https://aer.ktlsr.com)** — record every critical action an AI agent takes (model calls, tool calls, human approvals, redactions, errors, outputs) as an **audit-ready, redacted evidence packet** over the AER v1 API.
 
 - Small and dependency-light — a thin client over `fetch` (Node 18+).
 - **Redacted by default**: the server detects and hashes sensitive values; raw input/output is never stored in the clear.
 - The SDK **never logs** your API key or payloads.
 - Built-in timeout (AbortController) and retry on network/5xx errors (never on 4xx).
 
-## Install
+## Quick start
+
+AER runs as a hosted service at **[aer.ktlsr.com](https://aer.ktlsr.com)** — there is no server to set up.
+
+1. **Create an account** at [aer.ktlsr.com/signup](https://aer.ktlsr.com/signup).
+2. **Create an API key** on the [API keys](https://aer.ktlsr.com/keys) page. It is shown once — put it in your environment as `AER_API_KEY`.
+3. **Install the SDK** and point it at `https://aer.ktlsr.com`:
 
 ```bash
 npm install @ktlsr/collector-js
 # or: pnpm add @ktlsr/collector-js
 ```
+
+Recorded runs appear on your dashboard at [aer.ktlsr.com/runs](https://aer.ktlsr.com/runs).
+
+**Self-hosting:** AER is open source. Run your own instance from [the repository](https://github.com/ktlesr/aer) and set `baseUrl` to it instead.
 
 ## Usage
 
@@ -20,9 +30,9 @@ npm install @ktlsr/collector-js
 import { AgentEvidenceRecorder } from "@ktlsr/collector-js";
 
 const recorder = new AgentEvidenceRecorder({
-  baseUrl: "https://your-aer-instance.example.com", // your AER web app
-  apiKey: process.env.AER_API_KEY!,                 // never hard-code; load from env
-  environment: "production",                        // optional deployment label
+  baseUrl: "https://aer.ktlsr.com",   // or your self-hosted instance
+  apiKey: process.env.AER_API_KEY!,   // never hard-code; load from env
+  environment: "production",          // optional deployment label
 });
 
 // Start a run for one agent execution.
@@ -54,7 +64,7 @@ await run.complete({ status: "completed" });
 
 | Option       | Type       | Default                 | Notes                                                        |
 | ------------ | ---------- | ----------------------- | ------------------------------------------------------------ |
-| `baseUrl`    | `string`   | —                       | Base URL of your AER web app.                                |
+| `baseUrl`    | `string`   | —                       | `https://aer.ktlsr.com`, or your self-hosted AER web app.    |
 | `apiKey`     | `string`   | —                       | Sent as `Authorization: Bearer <apiKey>`. Never logged.      |
 | `environment` | `string`  | —                       | Deployment label (`production`, `staging`…) recorded on every run. 1–40 chars: letters, digits, `.` `_` `-`. |
 | `timeoutMs`  | `number`   | `10000`                 | Per-request timeout via `AbortController`.                   |

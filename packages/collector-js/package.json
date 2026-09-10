@@ -46,7 +46,7 @@
     "url": "git+https://github.com/ktlesr/aer.git",
     "directory": "packages/collector-js"
   },
-  "homepage": "https://github.com/ktlesr/aer/tree/main/packages/collector-js#readme",
+  "homepage": "https://aer.ktlsr.com",
   "bugs": {
     "url": "https://github.com/ktlesr/aer/issues"
   },

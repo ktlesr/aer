@@ -15,6 +15,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
   && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 WORKDIR /app
+# Bake the pinned pnpm (root package.json "packageManager") into the image. Before this only the
+# build stage had it cached, so every container boot re-downloaded pnpm from the npm registry
+# before `migrate deploy` — a registry outage would have stopped the app from starting.
+COPY package.json ./
+RUN corepack install
 
 # ---------------------------------------------------------------------------
 # Build stage: install all deps, generate the Prisma client, build Next.
