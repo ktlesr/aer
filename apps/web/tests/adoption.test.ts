@@ -4,7 +4,7 @@ import {
   countProjectsBy,
   parseInternalEmails,
   type ProjectActivity,
-} from "../scripts/adoption";
+} from "@/lib/ops/adoption";
 
 const now = new Date("2026-09-10T12:00:00.000Z");
 const daysAgo = (d: number) => new Date(now.getTime() - d * 86_400_000);

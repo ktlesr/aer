@@ -6,9 +6,12 @@ import { Button } from "@/components/ui/button";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { logoutAction } from "@/lib/auth/actions";
+import { isOperator } from "@/lib/ops/operator";
 
-/** Dashboard chrome shared by /runs and /keys: brand, workspace label, nav, logout, theme. */
-export async function AppHeader({ active }: { active: "runs" | "keys" | "home" }) {
+type Section = "runs" | "keys" | "ops";
+
+/** Dashboard chrome shared by /runs, /keys and /ops: brand, workspace label, nav, logout, theme. */
+export async function AppHeader({ active }: { active: Section | "home" }) {
   const session = await auth();
   const org = session?.user?.id
     ? await prisma.organization.findUnique({
@@ -16,8 +19,10 @@ export async function AppHeader({ active }: { active: "runs" | "keys" | "home" }
         select: { name: true },
       })
     : null;
+  // Only a convenience link — the page itself enforces access via requireOperator().
+  const operator = isOperator(session?.user?.id);
 
-  const navLink = (href: string, label: string, key: "runs" | "keys") =>
+  const navLink = (href: string, label: string, key: Section) =>
     active === key ? (
       <span key={key} className="text-sm font-medium text-foreground">
         {label}
@@ -46,6 +51,7 @@ export async function AppHeader({ active }: { active: "runs" | "keys" | "home" }
           <nav className="hidden items-center gap-5 sm:flex">
             {navLink("/runs", "Runs", "runs")}
             {navLink("/keys", "API Keys", "keys")}
+            {operator ? navLink("/ops", "Ops", "ops") : null}
           </nav>
           {org?.name ? (
             <span
