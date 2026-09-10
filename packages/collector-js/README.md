@@ -22,6 +22,7 @@ import { AgentEvidenceRecorder } from "@ktlsr/collector-js";
 const recorder = new AgentEvidenceRecorder({
   baseUrl: "https://your-aer-instance.example.com", // your AER web app
   apiKey: process.env.AER_API_KEY!,                 // never hard-code; load from env
+  environment: "production",                        // optional deployment label
 });
 
 // Start a run for one agent execution.
@@ -55,6 +56,7 @@ await run.complete({ status: "completed" });
 | ------------ | ---------- | ----------------------- | ------------------------------------------------------------ |
 | `baseUrl`    | `string`   | —                       | Base URL of your AER web app.                                |
 | `apiKey`     | `string`   | —                       | Sent as `Authorization: Bearer <apiKey>`. Never logged.      |
+| `environment` | `string`  | —                       | Deployment label (`production`, `staging`…) recorded on every run. 1–40 chars: letters, digits, `.` `_` `-`. |
 | `timeoutMs`  | `number`   | `10000`                 | Per-request timeout via `AbortController`.                   |
 | `maxRetries` | `number`   | `2`                     | Retries on network error / 5xx. Never retries 4xx.           |
 | `fetchImpl`  | `typeof fetch` | global `fetch`      | Override for testing.                                         |
@@ -72,6 +74,18 @@ await run.complete({ status: "completed" });
 ### `run.complete(input?) → Promise<void>`
 
 `input`: `{ status?: "completed" | "failed"; endedAt?: string }` (defaults to `completed`).
+
+## What the SDK sends
+
+Besides your API key and the run/event payloads you pass in, every request carries one header:
+
+```
+x-aer-sdk: collector-js/0.2.0
+```
+
+It tells the AER server which SDK and version created a run. Nothing else is collected — no
+machine identifiers, no hostnames, no telemetry to any other destination. Requests only ever go
+to the `baseUrl` you configure.
 
 ## Errors
 

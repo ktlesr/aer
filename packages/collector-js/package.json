@@ -1,6 +1,6 @@
 {
   "name": "@ktlsr/collector-js",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Collector SDK for Agent Evidence Recorder — record AI agent runs as audit-ready, redacted evidence over the v1 API.",
   "license": "MIT",
   "author": "ktlesr",
@@ -24,8 +24,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "tsx --test src/index.test.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/index.test.ts",
     "smoke": "tsx src/smoke.ts"
   },
   "publishConfig": {

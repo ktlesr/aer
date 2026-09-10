@@ -15,11 +15,22 @@ export type EventType =
   | "final_output"
   | "run_completed";
 
+/** Must match package.json "version" — src/index.test.ts fails if they drift. */
+export const SDK_VERSION = "0.2.0";
+
+/** Sent on every request so the server can tell collector-js runs from raw API calls. */
+const SDK_HEADER = `collector-js/${SDK_VERSION}`;
+
 export interface RecorderOptions {
   /** Base URL of the AER web app, e.g. http://localhost:3000 */
   baseUrl: string;
   /** Bearer API key. Sent as Authorization: Bearer <apiKey>; never logged by this SDK. */
   apiKey: string;
+  /**
+   * Deployment label recorded on every run this recorder starts, e.g. "production" or
+   * "staging". 1–40 chars: letters, digits, `.`, `_`, `-`. Optional.
+   */
+  environment?: string;
   /** Per-request timeout in ms (via AbortController). Default 10000. */
   timeoutMs?: number;
   /** Max retries on network error or 5xx (never on 4xx). Default 2. */
@@ -95,6 +106,7 @@ class ApiClient {
         headers: {
           authorization: `Bearer ${this.apiKey}`,
           "content-type": "application/json",
+          "x-aer-sdk": SDK_HEADER,
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
@@ -166,16 +178,18 @@ export class AgentRun {
 /** Entry point: create a recorder bound to a project (via the API key), then start runs. */
 export class AgentEvidenceRecorder {
   private readonly client: ApiClient;
+  private readonly environment?: string;
 
   constructor(options: RecorderOptions) {
     this.client = new ApiClient(options);
+    this.environment = options.environment;
   }
 
   async startRun(input: StartRunInput): Promise<AgentRun> {
     const res = await this.client.request<{ run: { id: string } }>(
       "POST",
       "/api/v1/runs",
-      input,
+      this.environment === undefined ? input : { ...input, environment: this.environment },
     );
     return new AgentRun(this.client, res.run.id);
   }

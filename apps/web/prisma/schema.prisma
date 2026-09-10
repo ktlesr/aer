@@ -149,6 +149,13 @@ model AgentRun {
   // Evidence chain: frozen chain head, written at complete (completed | failed). Null while
   // running and for legacy (pre-chain) runs. See docs/EVIDENCE_INTEGRITY.md.
   seal           String?
+  // Self-reported client identity, set once at run creation: sdkName/sdkVersion from the
+  // x-aer-sdk header, environment from the request body. Adoption metrics only — a client can
+  // claim anything here, so never use these as an authorization or evidence input.
+  // Null for runs from clients that don't send them (collector-js <= 0.1.0, raw API calls).
+  sdkName        String?
+  sdkVersion     String?
+  environment    String?
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project      Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)

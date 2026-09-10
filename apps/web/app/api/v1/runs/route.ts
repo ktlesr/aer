@@ -2,7 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { authenticate } from "@/lib/api/auth";
 import { makeRequestId } from "@/lib/api/errors";
 import { jsonOk, toErrorResponse } from "@/lib/api/respond";
-import { readJson, redactFields, serializeRun, toJsonInput } from "@/lib/api/helpers";
+import {
+  parseSdkHeader,
+  readJson,
+  redactFields,
+  serializeRun,
+  toJsonInput,
+} from "@/lib/api/helpers";
 import { createRunSchema, parseBody } from "@/lib/validation/schemas";
 
 export async function POST(request: Request): Promise<Response> {
@@ -10,12 +16,17 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const auth = await authenticate(request);
     const data = parseBody(createRunSchema, await readJson(request));
+    const sdk = parseSdkHeader(request.headers.get("x-aer-sdk"));
 
     // Redact every persisted field, not just input/output — a secret in agentName/metadata
-    // must never survive into the DB or the audit packet.
+    // must never survive into the DB or the audit packet. The client-identity fields are
+    // pattern-bounded already, but they are persisted too, so they go through the same gate.
     const { values, findings } = redactFields({
       agentName: data.agentName,
       metadata: data.metadata,
+      environment: data.environment,
+      sdkName: sdk?.sdkName,
+      sdkVersion: sdk?.sdkVersion,
     });
 
     const run = await prisma.$transaction(async (tx) => {
@@ -26,6 +37,9 @@ export async function POST(request: Request): Promise<Response> {
           agentName: values.agentName as string,
           riskLevel: data.riskLevel ?? "low",
           metadata: toJsonInput(values.metadata),
+          environment: values.environment as string | undefined,
+          sdkName: values.sdkName as string | undefined,
+          sdkVersion: values.sdkVersion as string | undefined,
           redactionCount: findings.length,
         },
       });

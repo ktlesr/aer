@@ -22,9 +22,9 @@ const RAW_PHONE = "+1 222 333 4455";
 function req(
   method: string,
   path: string,
-  opts: { token?: string; body?: unknown } = {},
+  opts: { token?: string; body?: unknown; headers?: Record<string, string> } = {},
 ): Request {
-  const headers: Record<string, string> = { "content-type": "application/json" };
+  const headers: Record<string, string> = { "content-type": "application/json", ...opts.headers };
   if (opts.token) headers.authorization = `Bearer ${opts.token}`;
   return new Request(`http://localhost${path}`, {
     method,
@@ -345,5 +345,54 @@ describe("API v1 — redaction covers all persisted fields, not just input/outpu
     const text = await dl.text();
     expect(text).not.toContain(rawKey);
     expect(text).not.toContain(rawMail);
+  });
+});
+
+describe("API v1 — client identity (adoption metrics)", () => {
+  async function create(opts: { headers?: Record<string, string>; body?: Record<string, unknown> }) {
+    const res = await createRun(
+      req("POST", "/api/v1/runs", {
+        token: TEST_KEY,
+        headers: opts.headers,
+        body: { agentName: "identity", ...opts.body },
+      }),
+    );
+    expect(res.status).toBe(201);
+    const { run } = await res.json();
+    return prisma.agentRun.findFirstOrThrow({ where: { id: run.id } });
+  }
+
+  it("stores sdk name/version from x-aer-sdk and a lowercased environment", async () => {
+    const row = await create({
+      headers: { "x-aer-sdk": "collector-js/0.2.0" },
+      body: { environment: "Production" },
+    });
+    expect(row.sdkName).toBe("collector-js");
+    expect(row.sdkVersion).toBe("0.2.0");
+    expect(row.environment).toBe("production");
+  });
+
+  it("leaves identity null when the client sends none (collector-js <= 0.1.0, raw API)", async () => {
+    const row = await create({});
+    expect(row.sdkName).toBeNull();
+    expect(row.sdkVersion).toBeNull();
+    expect(row.environment).toBeNull();
+  });
+
+  it("ignores a malformed x-aer-sdk header instead of failing the write", async () => {
+    for (const bad of ["collector-js", "collector-js/latest", "Evil/1.0.0", `x/${"9".repeat(50)}`]) {
+      const row = await create({ headers: { "x-aer-sdk": bad } });
+      expect(row.sdkName).toBeNull();
+      expect(row.sdkVersion).toBeNull();
+    }
+  });
+
+  it("rejects an environment that isn't a short label (422)", async () => {
+    for (const environment of ["", "has space", "a".repeat(41), "prod@corp.com"]) {
+      const res = await createRun(
+        req("POST", "/api/v1/runs", { token: TEST_KEY, body: { agentName: "x", environment } }),
+      );
+      expect(res.status).toBe(422);
+    }
   });
 });

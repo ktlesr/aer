@@ -14,6 +14,20 @@ export async function readJson(request: Request): Promise<unknown> {
   }
 }
 
+/** `x-aer-sdk: <name>/<semver>`, e.g. `collector-js/0.2.0`. Bounded so it can't carry a payload. */
+const SDK_HEADER = /^([a-z0-9][a-z0-9._-]{0,39})\/(\d{1,5}\.\d{1,5}\.\d{1,5}(?:-[0-9A-Za-z.-]{1,20})?)$/;
+
+/**
+ * Parse the self-reported SDK identity header. Anything that doesn't match exactly is treated as
+ * absent (null) rather than rejected — this is adoption telemetry, never a reason to fail a write.
+ */
+export function parseSdkHeader(
+  value: string | null,
+): { sdkName: string; sdkVersion: string } | null {
+  const m = value ? SDK_HEADER.exec(value.trim()) : null;
+  return m ? { sdkName: m[1], sdkVersion: m[2] } : null;
+}
+
 /** Load a run scoped to the caller's tenant. Cross-tenant or missing → 404 (no existence leak). */
 export async function requireRun(
   runId: string,

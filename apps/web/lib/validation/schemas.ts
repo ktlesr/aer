@@ -9,6 +9,13 @@ export const createRunSchema = z.object({
   agentName: z.string().min(1).max(200),
   riskLevel: riskLevelSchema.optional(),
   metadata: metadataSchema.optional(),
+  // A deployment label ("production", "staging"), not free text. Lowercased so "Production"
+  // and "production" count as one environment in adoption metrics.
+  environment: z
+    .string()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/, "1–40 chars: letters, digits, . _ -")
+    .transform((s) => s.toLowerCase())
+    .optional(),
 });
 export type CreateRunInput = z.infer<typeof createRunSchema>;
 
