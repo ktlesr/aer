@@ -10,6 +10,7 @@ import {
   toJsonInput,
 } from "@/lib/api/helpers";
 import { createRunSchema, parseBody } from "@/lib/validation/schemas";
+import { REDACTION_POLICY } from "@/lib/redaction";
 
 export async function POST(request: Request): Promise<Response> {
   const requestId = makeRequestId();
@@ -27,6 +28,7 @@ export async function POST(request: Request): Promise<Response> {
       environment: data.environment,
       sdkName: sdk?.sdkName,
       sdkVersion: sdk?.sdkVersion,
+      captureDeclared: data.capture,
     });
 
     const run = await prisma.$transaction(async (tx) => {
@@ -40,6 +42,8 @@ export async function POST(request: Request): Promise<Response> {
           environment: values.environment as string | undefined,
           sdkName: values.sdkName as string | undefined,
           sdkVersion: values.sdkVersion as string | undefined,
+          redactionPolicy: REDACTION_POLICY,
+          captureDeclared: toJsonInput(values.captureDeclared),
           redactionCount: findings.length,
         },
       });

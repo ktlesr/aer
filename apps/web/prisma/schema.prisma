@@ -157,6 +157,11 @@ model AgentRun {
   sdkName        String?
   sdkVersion     String?
   environment    String?
+  // Capture policy. redactionPolicy = server-applied masking policy (e.g. "aer-redaction/2"); null
+  // for rows written before policies were labelled. captureDeclared = what the CLIENT says it did
+  // before sending ({mode, policy, status}); AER cannot verify it. Neither is in the chain hash.
+  redactionPolicy String?
+  captureDeclared Json?
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project      Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
@@ -187,6 +192,11 @@ model AgentEvent {
   // previous event (genesis for the first). Nullable for legacy rows. See docs/EVIDENCE_INTEGRITY.md.
   hash           String?
   prevHash       String?
+  // Capture policy. redactionPolicy = server-applied masking policy (e.g. "aer-redaction/2"); null
+  // for rows written before policies were labelled. captureDeclared = what the CLIENT says it did
+  // before sending ({mode, policy, status}); AER cannot verify it. Neither is in the chain hash.
+  redactionPolicy String?
+  captureDeclared Json?
 
   run      AgentRun           @relation(fields: [runId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Cascade)
   findings RedactionFinding[]

@@ -10,6 +10,7 @@ import {
   toJsonInput,
 } from "@/lib/api/helpers";
 import { createEventSchema, parseBody } from "@/lib/validation/schemas";
+import { REDACTION_POLICY } from "@/lib/redaction";
 import { genesisHash, hashEvent, type EventCore } from "@ktlsr/evidence-chain";
 
 export async function POST(
@@ -52,6 +53,7 @@ export async function POST(
       input: data.input,
       output: data.output,
       metadata: data.metadata,
+      captureDeclared: data.capture,
     });
 
     const seq = data.seq ?? run.eventCount + 1;
@@ -100,6 +102,8 @@ export async function POST(
           riskLevel: data.riskLevel,
           costMicroUsd: data.costMicroUsd,
           metadata: toJsonInput(values.metadata),
+          redactionPolicy: REDACTION_POLICY,
+          captureDeclared: toJsonInput(values.captureDeclared),
           hash,
           prevHash,
         },

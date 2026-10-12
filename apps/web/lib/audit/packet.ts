@@ -14,6 +14,16 @@ interface PacketFinding {
   originalHash: string | null;
 }
 
+/**
+ * Who filtered the content and under which policy. server_applied is AER's own record (null = row
+ * written before policies were labelled). client_declared is the client's unverifiable claim.
+ * Covered by content_hash, NOT by the event chain hash.
+ */
+export interface PacketCapture {
+  server_applied: { layer: "server"; policy: string } | null;
+  client_declared: ({ layer: "client" } & Record<string, unknown>) | null;
+}
+
 export interface AuditPacket {
   schema_version: string;
   run: {
@@ -27,6 +37,7 @@ export interface AuditPacket {
     costMicroUsd: number;
     eventCount: number;
     redactionCount: number;
+    capture: PacketCapture;
   };
   events: Array<{
     seq: number;
@@ -43,6 +54,7 @@ export interface AuditPacket {
     prevHash: string | null;
     // Findings that went into this event's hash (raw values never present — only the hash).
     findings: PacketFinding[];
+    capture: PacketCapture;
   }>;
   redaction_findings: Array<PacketFinding>;
   // Chain anchor — lets a third party re-verify the packet offline (see docs/EVIDENCE_INTEGRITY.md).
@@ -59,6 +71,17 @@ const withPrefix = (hex: string): string => `sha256:${hex}`;
 const stripPrefix = (v: string): string => v.replace(/^sha256:/, "");
 
 const jsonOrNull = (v: unknown): unknown => (v === undefined ? null : v);
+
+function captureOf(row: { redactionPolicy: string | null; captureDeclared: unknown }): PacketCapture {
+  const declared = row.captureDeclared;
+  return {
+    server_applied: row.redactionPolicy ? { layer: "server", policy: row.redactionPolicy } : null,
+    client_declared:
+      declared && typeof declared === "object" && !Array.isArray(declared)
+        ? { layer: "client", ...(declared as Record<string, unknown>) }
+        : null,
+  };
+}
 
 /**
  * Deterministic sha256 over the run's redacted content (no timestamps) — a stable "evidence digest"
@@ -120,7 +143,8 @@ export function buildAuditPacket(
   });
 
   const base: Omit<AuditPacket, "export"> & { export: Omit<AuditPacket["export"], "content_hash"> } = {
-    schema_version: "1.1",
+    // 1.2 = 1.1 + run/event `capture`. Chain hashing is unchanged, so 1.1 packets verify as before.
+    schema_version: "1.2",
     run: {
       id: run.id,
       agentName: run.agentName,
@@ -132,6 +156,7 @@ export function buildAuditPacket(
       costMicroUsd: run.costMicroUsd,
       eventCount: run.eventCount,
       redactionCount: run.redactionCount,
+      capture: captureOf(run),
     },
     events: events.map((e) => ({
       seq: e.seq,
@@ -146,6 +171,7 @@ export function buildAuditPacket(
       hash: e.hash ? withPrefix(e.hash) : null,
       prevHash: e.prevHash ? withPrefix(e.prevHash) : null,
       findings: findings.filter((f) => f.eventId === e.id).map(toPacketFinding),
+      capture: captureOf(e),
     })),
     redaction_findings: findings.map(toPacketFinding),
     chain: { algorithm: "sha256", genesis: withPrefix(genesisHash(run.id)) },

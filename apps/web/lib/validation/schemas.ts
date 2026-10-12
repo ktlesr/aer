@@ -5,6 +5,19 @@ export const riskLevelSchema = z.enum(["low", "medium", "high", "critical"]);
 
 const metadataSchema = z.record(z.string(), z.unknown());
 
+/**
+ * The client's own statement of how it filtered content before sending (collector-js >= 0.3).
+ * A claim, not a fact AER can check — stored and exported as "client_declared". Bounded and strict
+ * so it can't smuggle content.
+ */
+export const captureDeclaredSchema = z
+  .object({
+    mode: z.enum(["metadata_only", "allowlist", "redacted_content", "full"]),
+    policy: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/, "1–80 chars: letters, digits, . _ : / -"),
+    status: z.enum(["applied", "failed_closed"]),
+  })
+  .strict();
+
 export const createRunSchema = z.object({
   agentName: z.string().min(1).max(200),
   riskLevel: riskLevelSchema.optional(),
@@ -16,6 +29,7 @@ export const createRunSchema = z.object({
     .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$/, "1–40 chars: letters, digits, . _ -")
     .transform((s) => s.toLowerCase())
     .optional(),
+  capture: captureDeclaredSchema.optional(),
 });
 export type CreateRunInput = z.infer<typeof createRunSchema>;
 
@@ -41,6 +55,7 @@ export const createEventSchema = z.object({
   riskLevel: riskLevelSchema.optional(),
   costMicroUsd: z.number().int().nonnegative().optional(),
   metadata: metadataSchema.optional(),
+  capture: captureDeclaredSchema.optional(),
 });
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 
