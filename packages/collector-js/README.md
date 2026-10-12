@@ -3,7 +3,7 @@
 Collector SDK for **[Agent Evidence Recorder](https://aer.ktlsr.com)** — record every critical action an AI agent takes (model calls, tool calls, human approvals, redactions, errors, outputs) as an **audit-ready, redacted evidence packet** over the AER v1 API.
 
 - Small and dependency-light — a thin client over `fetch` (Node 18+).
-- **Redacted by default**: the server detects and hashes sensitive values; raw input/output is never stored in the clear.
+- **Server-side redaction on every write**: the server masks the sensitive values it can recognise (emails, phones, cards, ids, keys/tokens, secret-named fields) before storage. Recognition is pattern- and field-name-based, **not universal**: names, free-text passwords and trade secrets in prose are not detected. Use a client-side `capture` policy (below) to keep such content from being sent at all.
 - The SDK **never logs** your API key or payloads.
 - Built-in timeout (AbortController) and retry on network/5xx errors (never on 4xx).
 
@@ -70,6 +70,35 @@ await run.complete({ status: "completed" });
 | `timeoutMs`  | `number`   | `10000`                 | Per-request timeout via `AbortController`.                   |
 | `maxRetries` | `number`   | `2`                     | Retries on network error / 5xx. Never retries 4xx.           |
 | `fetchImpl`  | `typeof fetch` | global `fetch`      | Override for testing.                                         |
+| `capture`    | `CaptureOptions` | — (`full`)        | Client-side capture policy, applied before anything is sent. See below. |
+
+### Capture policy (`capture`)
+
+Decides what leaves your process. It runs on a deep copy — your objects are never mutated — and the
+server still redacts again on arrival.
+
+| `mode` | What is sent |
+| --- | --- |
+| `full` (default) | Everything you pass; only server-side redaction applies. |
+| `redacted_content` | Values under secret-named keys (`password`, `apiKey`, `authorization`, `*token`, `credentials`…) are replaced by `[REDACTED_SECRET]`; tokens/keys, Luhn-valid cards and emails are masked in strings and object keys. |
+| `allowlist` | Only the `allow` paths of `input` / `output` / `metadata` (e.g. `"output.sources.*.id"`), then masked as above. Unknown fields are dropped. |
+| `metadata_only` | No `input` / `output` at all. `metadata` keeps only allowlisted keys with number, boolean or ≤200-char string values. |
+
+Other fields: `secretFields` (extra key names to mask whole), `redact(payload)` (your own scrubber,
+applied last), `onRedactionError` — `drop_content` (default: the step is still recorded with its
+title replaced and all content withheld) or `throw` (nothing is sent). Raw content is never sent
+when masking fails. `title` and `agentName` are always sent (masked in non-`full` modes) — keep
+content out of them.
+
+Each run/event then carries `capture: { mode, policy, status }`. AER stores and exports it as a
+**client declaration**: the server cannot verify what the client did before sending.
+
+```ts
+const recorder = new AgentEvidenceRecorder({
+  baseUrl, apiKey,
+  capture: { mode: "allowlist", allow: ["input.question", "output.answer", "output.sources.*.id", "metadata.model"] },
+});
+```
 
 ### `recorder.startRun(input) → Promise<AgentRun>`
 
@@ -90,7 +119,7 @@ await run.complete({ status: "completed" });
 Besides your API key and the run/event payloads you pass in, every request carries one header:
 
 ```
-x-aer-sdk: collector-js/0.2.0
+x-aer-sdk: collector-js/0.3.0
 ```
 
 It tells the AER server which SDK and version created a run. Nothing else is collected — no

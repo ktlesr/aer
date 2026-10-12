@@ -1,5 +1,8 @@
 // collector-js — Agent Evidence Recorder collector SDK.
 // Small, dependency-light client over the v1 API. Uses the global fetch (Node 18+).
+import { applyCapture, capturePolicy, type CaptureOptions } from "./capture.js";
+
+export type { CaptureDeclaration, CaptureMode, CaptureOptions, CapturePayload } from "./capture.js";
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
@@ -16,7 +19,7 @@ export type EventType =
   | "run_completed";
 
 /** Must match package.json "version" — src/index.test.ts fails if they drift. */
-export const SDK_VERSION = "0.2.0";
+export const SDK_VERSION = "0.3.0";
 
 /** Sent on every request so the server can tell collector-js runs from raw API calls. */
 const SDK_HEADER = `collector-js/${SDK_VERSION}`;
@@ -37,6 +40,11 @@ export interface RecorderOptions {
   maxRetries?: number;
   /** Override fetch (for tests). Defaults to the global fetch. */
   fetchImpl?: typeof fetch;
+  /**
+   * Client-side capture policy, applied before anything is sent. Omitted = `full` (send as
+   * given; the server still redacts). See CaptureOptions.
+   */
+  capture?: CaptureOptions;
 }
 
 export interface StartRunInput {
@@ -152,18 +160,32 @@ class ApiClient {
   }
 }
 
+/** Apply the recorder's capture policy (if any) and attach the declaration the server records. */
+function captured<T extends object>(body: T, capture: CaptureOptions | undefined, failedTitle: string): T {
+  if (!capture) return body;
+  const { payload, declaration } = applyCapture(
+    body,
+    capture,
+    capturePolicy(SDK_HEADER, capture),
+    failedTitle,
+  );
+  return { ...payload, capture: declaration };
+}
+
 /** A live run handle. Emit events, then complete it. */
 export class AgentRun {
   constructor(
     private readonly client: ApiClient,
     public readonly id: string,
+    private readonly capture?: CaptureOptions,
   ) {}
 
   async event(input: EventInput): Promise<EventResult> {
+    const body = captured(input, this.capture, `${input.type} (content withheld: client redaction failed)`);
     const res = await this.client.request<{
       event: { id: string };
       redaction: { findingsCount: number };
-    }>("POST", `/api/v1/runs/${this.id}/events`, input);
+    }>("POST", `/api/v1/runs/${this.id}/events`, body);
     return { eventId: res.event.id, findingsCount: res.redaction.findingsCount };
   }
 
@@ -179,18 +201,21 @@ export class AgentRun {
 export class AgentEvidenceRecorder {
   private readonly client: ApiClient;
   private readonly environment?: string;
+  private readonly capture?: CaptureOptions;
 
   constructor(options: RecorderOptions) {
     this.client = new ApiClient(options);
     this.environment = options.environment;
+    this.capture = options.capture;
   }
 
   async startRun(input: StartRunInput): Promise<AgentRun> {
+    const body = captured(input, this.capture, "agent (name withheld: client redaction failed)");
     const res = await this.client.request<{ run: { id: string } }>(
       "POST",
       "/api/v1/runs",
-      this.environment === undefined ? input : { ...input, environment: this.environment },
+      this.environment === undefined ? body : { ...body, environment: this.environment },
     );
-    return new AgentRun(this.client, res.run.id);
+    return new AgentRun(this.client, res.run.id, this.capture);
   }
 }
