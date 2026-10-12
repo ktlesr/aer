@@ -59,8 +59,21 @@ function redactValue(
 
   if (typeof value === "number") {
     // A card/SSN sent as a JSON *number* (e.g. {"card": 4111111111111111}) would otherwise
-    // bypass string-only detection. Coerce to string and run the detectors; only redact (and
-    // change the leaf to a token) when something actually matches — plain numbers stay numbers.
+    // bypass string-only detection. Only integers can be one; fractions/exponents (scores, metrics)
+    // stay numbers untouched.
+    if (!Number.isInteger(value)) return value;
+    // Above 2^53 JSON.parse has already rounded the digits, so a 17–19 digit PAN can no longer be
+    // Luhn-checked. Fail closed: such an integer is treated as a card. Send big ids as strings.
+    const digits = Math.abs(value).toLocaleString("en-US", { useGrouping: false });
+    if (!Number.isSafeInteger(value) && digits.length >= 13 && digits.length <= 19) {
+      findings.push({
+        findingType: "credit_card",
+        severity: "high",
+        fieldPath: path,
+        originalHash: sha256(digits),
+      });
+      return "[REDACTED_CREDIT_CARD]";
+    }
     const { value: redacted, matches } = redactString(String(value));
     if (matches.length === 0) return value;
     for (const m of matches) {

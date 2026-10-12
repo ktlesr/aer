@@ -70,11 +70,15 @@ export const PATTERNS: RedactionPattern[] = [
     regex: /\baer_[A-Za-z0-9]{24,}\b/g,
   },
   // Credit-card-like: 13–19 digits with optional spaces/dashes, validated by Luhn.
+  // A digit run glued to a decimal separator is part of a number ("0.5143…", "1,25"), never a card:
+  // a score whose fraction digits happened to pass Luhn became "0.[REDACTED_CREDIT_CARD]" (real
+  // Teşvik Asistanı record). The lookahead only refuses a separator FOLLOWED by a digit, so a card
+  // that ends a sentence ("kart 4111….") still matches.
   {
     findingType: "credit_card",
     severity: "high",
     token: "[REDACTED_CREDIT_CARD]",
-    regex: /\b(?:\d[ -]?){13,19}\b/g,
+    regex: /(?<![\d.,])\b(?:\d[ -]?){13,19}\b(?![.,]\d)/g,
     validate: (m) => {
       const d = digitsOf(m);
       return d.length >= 13 && d.length <= 19 && luhnValid(d);
@@ -82,12 +86,13 @@ export const PATTERNS: RedactionPattern[] = [
   },
   // National-id-like: SSN format ###-##-#### or a bare 11-digit id (e.g. TR TCKN).
   // TR national id never starts with 0, so requiring a 1–9 first digit keeps this from
-  // swallowing 11-digit phone numbers (which begin with the "0" trunk prefix).
+  // swallowing 11-digit phone numbers (which begin with the "0" trunk prefix). Same decimal guard
+  // as the card pattern: "0.12345678901" is a number, not an id.
   {
     findingType: "national_id",
     severity: "high",
     token: "[REDACTED_NATIONAL_ID]",
-    regex: /\b\d{3}-\d{2}-\d{4}\b|\b[1-9]\d{10}\b/g,
+    regex: /\b\d{3}-\d{2}-\d{4}\b|(?<![\d.,])\b[1-9]\d{10}\b(?![.,]\d)/g,
   },
   // Email.
   {
