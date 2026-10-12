@@ -33,8 +33,8 @@ describe("redaction — numeric values are not cards", () => {
   });
 
   it.each(LUHN_FRACTIONS)("keeps the decimal string %s untouched", (s) => {
-    const { redacted, findings } = redactJson({ score: s, text: `score=${s}; tr=${s.replace(".", ",")}` });
-    expect(redacted).toEqual({ score: s, text: `score=${s}; tr=${s.replace(".", ",")}` });
+    const { redacted, findings } = redactJson({ score: s, text: `score=${s}, sonra` });
+    expect(redacted).toEqual({ score: s, text: `score=${s}, sonra` });
     expect(findings).toHaveLength(0);
   });
 
@@ -73,8 +73,27 @@ describe("redaction — numeric values are not cards", () => {
   });
 
   it("treats a long digit run glued to a decimal point as part of the number, not a card", () => {
-    // Both sides of a decimal separator belong to the number.
-    const { findings } = redactJson({ a: "4111111111111111.5", b: "1,4111111111111111" });
+    // Both sides of a decimal point belong to the number.
+    const { findings } = redactJson({ a: "4111111111111111.5", b: "1.4111111111111111" });
     expect(findings).toHaveLength(0);
+  });
+
+  it("does not open a bypass: cards after commas, after letter-dot, in CSV rows are still masked", () => {
+    const { redacted } = redactJson({
+      csv: "ayse,4111111111111111,12/29",
+      csvNum: "7,4111111111111111,3",
+      dotted: "no.4111111111111111",
+      id: "ref,12345678901,x",
+    });
+    expect(redacted).toEqual({
+      csv: "ayse,[REDACTED_CREDIT_CARD],12/29",
+      csvNum: "7,[REDACTED_CREDIT_CARD],3",
+      dotted: "no.[REDACTED_CREDIT_CARD]",
+      id: "ref,[REDACTED_NATIONAL_ID],x",
+    });
+  });
+
+  it("known trade-off: a comma-decimal fraction in text is not guarded (commas separate CSV)", () => {
+    expect(redactJson({ t: "0,0000246913578" }).findings[0]?.findingType).toBe("credit_card");
   });
 });
