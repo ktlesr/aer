@@ -4,6 +4,10 @@ Audit-ready evidence layer for AI agent runs. Turns every critical agent action
 (model call, tool call, human approval, redaction, error, output) into a redacted,
 hash-anchored **audit packet**.
 
+Scope of those words: redaction covers the patterns and secret-named fields AER recognises, not
+all personal data; the hash chain proves internal consistency, not resistance to an operator who
+rewrites the database (no external seal yet). Details: `docs/hardening/`.
+
 > Not an observability tool. See [`docs/PRODUCT.md`](docs/PRODUCT.md) for positioning.
 
 ## Repo Layout

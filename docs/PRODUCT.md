@@ -74,7 +74,11 @@ Generic logging/observability captures latency and tokens — not **evidence**.
 
 ## Value Proposition
 - **Provable:** a chronological, redacted timeline of every agent decision.
-- **Safe:** sensitive values never stored in the clear — only hashes and redaction findings.
+- **Safer by default:** every persisted field passes server-side redaction; detected values are
+  stored only as findings. Detection is pattern- and field-name-based and **not universal** —
+  names, free-text passwords and trade secrets in prose are not recognised. Content that must
+  never leave the app should be kept out with the SDK `capture` policy (`allowlist`,
+  `metadata_only`). See `docs/hardening/01-capture-policy.md`.
 - **Portable:** a single JSON **audit packet** with a `sha256` content hash, downloadable
   and reviewable outside the system.
 - **Low-friction:** a small collector SDK; drop a few `run.event(...)` calls into an agent.
@@ -97,4 +101,10 @@ A customer asks for their data to be deleted. The agent:
 6. produces a final output and completes the run.
 
 AER records all of this as an evidence packet: a timeline + redaction findings + a
-downloadable JSON audit packet that contains **no raw sensitive values**.
+downloadable JSON audit packet that contains **no raw values of the kinds AER detects**.
+
+### Scope of the integrity claim
+The hash chain shows the recorded events and the seal are **internally consistent**. On its own it
+does not stop an operator with database access from recomputing the whole history; that needs an
+external seal/receipt (planned). AER records only what the application reports — a missing event
+does not prove an action did not happen. Nothing here is a legal-compliance guarantee.
