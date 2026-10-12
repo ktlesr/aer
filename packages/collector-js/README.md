@@ -5,7 +5,8 @@ Collector SDK for **[Agent Evidence Recorder](https://aer.ktlsr.com)** — recor
 - Small and dependency-light — a thin client over `fetch` (Node 18+).
 - **Server-side redaction on every write**: the server masks the sensitive values it can recognise (emails, phones, cards, ids, keys/tokens, secret-named fields) before storage. Recognition is pattern- and field-name-based, **not universal**: names, free-text passwords and trade secrets in prose are not detected. Use a client-side `capture` policy (below) to keep such content from being sent at all.
 - The SDK **never logs** your API key or payloads.
-- Built-in timeout (AbortController) and retry on network/5xx errors (never on 4xx).
+- Built-in timeout (AbortController, covering the response body too) and retry on network/5xx errors (never on 4xx).
+- Safe retries: every call carries one `Idempotency-Key`, reused across its retries, so a retry after a lost response never records twice.
 
 ## Quick start
 
@@ -106,20 +107,36 @@ const recorder = new AgentEvidenceRecorder({
 
 ### `run.event(input) → Promise<{ eventId: string; findingsCount: number }>`
 
-`input`: `{ type: EventType; title: string; seq?: number; input?: unknown; output?: unknown; riskLevel?: RiskLevel; costMicroUsd?: number; metadata?: Record<string, unknown> }`
+`input`: `{ type: EventType; title: string; seq?: number; input?: unknown; output?: unknown; riskLevel?: RiskLevel; costMicroUsd?: number; metadata?: Record<string, unknown>; idempotencyKey?: string }`
+
+`seq` is the event's position in the run's evidence chain. Leave it out: the server assigns the next
+one atomically. If you do send it, it must be higher than every earlier `seq` of the run (gaps are
+allowed); resending an existing `seq` with identical content returns the original event, with
+different content it fails with `409`. Put your own step numbers in `metadata`, not in `seq`.
+
+### Idempotency and retries
+
+Each `startRun` / `event` / `complete` call sends an `Idempotency-Key` header, generated once per
+call and reused by that call's retries. If the server committed but the response was lost, the
+retry gets the original result back (`Idempotent-Replayed: true`) instead of a second record.
+Pass `idempotencyKey` yourself (1–200 chars `A-Z a-z 0-9 . _ : -`) to keep it stable across a
+process restart. Keys are scoped to your project and kept for 24 hours; reusing a key for a
+different request fails with `409 conflict`. Completing an already completed run with the same
+status is a no-op; a different status or `endedAt` is `409`.
 
 `EventType` is one of: `run_started`, `user_input`, `model_call`, `tool_call`, `redaction_applied`, `human_approval_requested`, `human_approval_granted`, `error`, `final_output`, `run_completed`.
 
 ### `run.complete(input?) → Promise<void>`
 
-`input`: `{ status?: "completed" | "failed"; endedAt?: string }` (defaults to `completed`).
+`input`: `{ status?: "completed" | "failed"; endedAt?: string; idempotencyKey?: string }` (defaults to `completed`).
 
 ## What the SDK sends
 
-Besides your API key and the run/event payloads you pass in, every request carries one header:
+Besides your API key and the run/event payloads you pass in, every request carries two headers:
 
 ```
 x-aer-sdk: collector-js/0.3.0
+idempotency-key: <random UUID, or your idempotencyKey>
 ```
 
 It tells the AER server which SDK and version created a run. Nothing else is collected — no
@@ -128,7 +145,7 @@ to the `baseUrl` you configure.
 
 ## Errors
 
-Failed requests throw `RecorderError` with `code`, `message`, `status`, and optional `requestId`. Network/timeout failures use `code: "network"` and `status: 0`. The error never echoes the request URL or your API key.
+Failed requests throw `RecorderError` with `code`, `message`, `status`, and optional `requestId`. Network/timeout failures use `code: "network"` and `status: 0`. A non-JSON response (e.g. a proxy error page) keeps its HTTP `status` and is never quoted in the message. The error never echoes the request URL, your API key or the response body.
 
 ```ts
 import { RecorderError } from "@ktlsr/collector-js";

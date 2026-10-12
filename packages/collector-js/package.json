@@ -24,9 +24,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "tsx --test src/index.test.ts src/capture.test.ts && tsc -p tsconfig.build.json",
+    "prepublishOnly": "tsx --test src/index.test.ts src/capture.test.ts src/retry.test.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/index.test.ts src/capture.test.ts",
+    "test": "tsx --test src/index.test.ts src/capture.test.ts src/retry.test.ts",
     "smoke": "tsx src/smoke.ts"
   },
   "publishConfig": {

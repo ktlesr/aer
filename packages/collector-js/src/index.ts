@@ -47,13 +47,20 @@ export interface RecorderOptions {
   capture?: CaptureOptions;
 }
 
+/**
+ * `idempotencyKey` (optional, on every input): your own key for this logical operation, e.g. to
+ * resume after a process restart. Omitted = the SDK generates one per call and reuses it across
+ * that call's retries. 1–200 chars of A-Z a-z 0-9 . _ : -; scoped to your project.
+ */
 export interface StartRunInput {
+  idempotencyKey?: string;
   agentName: string;
   riskLevel?: RiskLevel;
   metadata?: Record<string, unknown>;
 }
 
 export interface EventInput {
+  idempotencyKey?: string;
   type: EventType;
   title: string;
   seq?: number;
@@ -65,6 +72,7 @@ export interface EventInput {
 }
 
 export interface CompleteInput {
+  idempotencyKey?: string;
   status?: "completed" | "failed";
   endedAt?: string;
 }
@@ -88,6 +96,23 @@ export class RecorderError extends Error {
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+function newIdempotencyKey(): string {
+  // ponytail: Web Crypto is global on Node >= 19 and in browsers/edge runtimes; the fallback only
+  // has to be unique within one project, not secret.
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
+  );
+}
+
+/** Split the optional caller-chosen key off the body (it travels as a header, not content). */
+function withoutKey<T extends { idempotencyKey?: string }>(
+  input: T,
+): [Omit<T, "idempotencyKey">, string | undefined] {
+  const { idempotencyKey, ...rest } = input;
+  return [rest, idempotencyKey];
+}
+
 class ApiClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
@@ -103,11 +128,15 @@ class ApiClient {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
-  /** One attempt with an AbortController timeout. Network/timeout failures throw RecorderError(network). */
-  private async attempt<T>(method: string, path: string, body?: unknown): Promise<T> {
+  /**
+   * One attempt. The timeout covers the whole exchange — headers AND body — so a server that
+   * stalls mid-body can't hang the caller. Network/timeout failures throw RecorderError(network).
+   */
+  private async attempt<T>(method: string, path: string, body: unknown, idempotencyKey: string): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     let res: Response;
+    let text: string;
     try {
       res = await this.fetchImpl(`${this.baseUrl}${path}`, {
         method,
@@ -115,10 +144,12 @@ class ApiClient {
           authorization: `Bearer ${this.apiKey}`,
           "content-type": "application/json",
           "x-aer-sdk": SDK_HEADER,
+          "idempotency-key": idempotencyKey,
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
+      text = await res.text();
     } catch {
       // Network failure or timeout. Do not include the cause — it could echo the URL/key.
       throw new RecorderError("network", `Request failed: ${method} ${path}`, 0);
@@ -126,15 +157,24 @@ class ApiClient {
       clearTimeout(timer);
     }
 
-    const text = await res.text();
-    const json = (text ? JSON.parse(text) : {}) as unknown;
+    let json: unknown;
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      // Proxy HTML, truncated body… Never quote it: an error page can echo the request.
+      throw new RecorderError(
+        res.ok ? "invalid_response" : "request_failed",
+        `HTTP ${res.status}: response was not JSON`,
+        res.status,
+      );
+    }
 
     if (!res.ok) {
       const err = (json as { error?: { code?: string; message?: string; request_id?: string } })
         .error;
       throw new RecorderError(
         err?.code ?? "request_failed",
-        err?.message ?? res.statusText,
+        err?.message ?? `HTTP ${res.status}`,
         res.status,
         err?.request_id,
       );
@@ -142,16 +182,26 @@ class ApiClient {
     return json as T;
   }
 
-  /** Retry on network error / 5xx (max `maxRetries`); never retry on 4xx (a client/auth error). */
-  async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  /**
+   * One logical operation. Its Idempotency-Key is fixed here, once, and reused by every retry, so
+   * a retry after a lost response returns the first result instead of writing twice.
+   * Retries: network/timeout (status 0), 5xx, and a 2xx whose body was unreadable. Never 4xx.
+   */
+  async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    idempotencyKey: string = newIdempotencyKey(),
+  ): Promise<T> {
     let lastError: unknown;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
-        return await this.attempt<T>(method, path, body);
+        return await this.attempt<T>(method, path, body, idempotencyKey);
       } catch (err) {
         lastError = err;
         const retryable =
-          err instanceof RecorderError && (err.status === 0 || err.status >= 500);
+          err instanceof RecorderError &&
+          (err.status === 0 || err.status >= 500 || err.code === "invalid_response");
         if (!retryable || attempt === this.maxRetries) throw err;
         await sleep(200 * (attempt + 1));
       }
@@ -181,19 +231,22 @@ export class AgentRun {
   ) {}
 
   async event(input: EventInput): Promise<EventResult> {
-    const body = captured(input, this.capture, `${input.type} (content withheld: client redaction failed)`);
+    const [event, key] = withoutKey(input);
+    const body = captured(event, this.capture, `${input.type} (content withheld: client redaction failed)`);
     const res = await this.client.request<{
       event: { id: string };
       redaction: { findingsCount: number };
-    }>("POST", `/api/v1/runs/${this.id}/events`, body);
+    }>("POST", `/api/v1/runs/${this.id}/events`, body, key);
     return { eventId: res.event.id, findingsCount: res.redaction.findingsCount };
   }
 
   async complete(input: CompleteInput = {}): Promise<void> {
-    await this.client.request("POST", `/api/v1/runs/${this.id}/complete`, {
-      status: input.status ?? "completed",
-      endedAt: input.endedAt,
-    });
+    await this.client.request(
+      "POST",
+      `/api/v1/runs/${this.id}/complete`,
+      { status: input.status ?? "completed", endedAt: input.endedAt },
+      input.idempotencyKey,
+    );
   }
 }
 
@@ -210,11 +263,13 @@ export class AgentEvidenceRecorder {
   }
 
   async startRun(input: StartRunInput): Promise<AgentRun> {
-    const body = captured(input, this.capture, "agent (name withheld: client redaction failed)");
+    const [run, key] = withoutKey(input);
+    const body = captured(run, this.capture, "agent (name withheld: client redaction failed)");
     const res = await this.client.request<{ run: { id: string } }>(
       "POST",
       "/api/v1/runs",
       this.environment === undefined ? body : { ...body, environment: this.environment },
+      key,
     );
     return new AgentRun(this.client, res.run.id, this.capture);
   }
