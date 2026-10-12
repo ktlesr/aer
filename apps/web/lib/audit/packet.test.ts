@@ -118,3 +118,19 @@ describe("buildAuditPacket — self-verifying chain", () => {
     expect(res.ok).toBe(false);
   });
 });
+
+describe("buildAuditPacket — secret findings with no recorded hash", () => {
+  it("shows null (not 'sha256:') and still verifies from the packet alone", () => {
+    const secret = [
+      ...findings,
+      { ...findings[0], id: "f2", findingType: "secret", severity: "high", fieldPath: "metadata.password", originalHash: "" },
+    ] as unknown as RedactionFinding[];
+    const links = computeChain("run_x", events.map((e) => toEventCore(e, secret)));
+    const chainedEvents = events.map((e, i) => ({ ...e, hash: links[i].hash, prevHash: links[i].prevHash }));
+    const chainedRun = { ...run, seal: links[links.length - 1].hash } as AgentRun;
+    const packet = buildAuditPacket(chainedRun, chainedEvents, secret, gen);
+    expect(packet.events[0].findings.map((f) => f.originalHash)).toEqual([`sha256:${"a".repeat(64)}`, null]);
+    const res = verifyChain(packetToChainLinks(packet), packetSeal(packet), packet.run.id);
+    expect(res).toMatchObject({ ok: true, status: "verified" });
+  });
+});

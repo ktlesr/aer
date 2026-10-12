@@ -10,7 +10,8 @@ interface PacketFinding {
   findingType: string;
   severity: string;
   fieldPath: string;
-  originalHash: string;
+  // null = deliberately not recorded (secret-named fields: a plain hash of a password is guessable).
+  originalHash: string | null;
 }
 
 export interface AuditPacket {
@@ -114,8 +115,8 @@ export function buildAuditPacket(
     findingType: f.findingType,
     severity: f.severity,
     fieldPath: f.fieldPath,
-    // DB stores raw 64-hex; present with an algorithm prefix in the packet.
-    originalHash: withPrefix(f.originalHash),
+    // DB stores raw 64-hex ("" when not recorded); present with an algorithm prefix in the packet.
+    originalHash: f.originalHash ? withPrefix(f.originalHash) : null,
   });
 
   const base: Omit<AuditPacket, "export"> & { export: Omit<AuditPacket["export"], "content_hash"> } = {
@@ -185,7 +186,7 @@ export function packetToChainLinks(packet: AuditPacket): ChainLink[] {
       findingType: f.findingType,
       severity: f.severity,
       fieldPath: f.fieldPath,
-      originalHash: stripPrefix(f.originalHash),
+      originalHash: f.originalHash ? stripPrefix(f.originalHash) : "",
     })),
     hash: e.hash ? stripPrefix(e.hash) : "",
     prevHash: e.prevHash ? stripPrefix(e.prevHash) : "",

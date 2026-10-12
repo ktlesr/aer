@@ -59,6 +59,7 @@ enum FindingType {
   bearer_token
   credit_card
   national_id
+  secret // value under a secret-named field (password, apiKey…); originalHash is "" (not recorded)
 }
 
 enum Severity {

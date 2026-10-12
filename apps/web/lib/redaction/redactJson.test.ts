@@ -38,10 +38,11 @@ describe("redactJson — per-pattern detection", () => {
 
   it("redacts a prefixed API key as high severity", () => {
     const raw = "sk-1234567890ABCDEFghijKLmn";
-    const { redacted, findings } = redactJson({ token: raw });
+    // Key deliberately not secret-named ("token" is masked whole by the field rule instead).
+    const { redacted, findings } = redactJson({ leaked: raw });
 
-    expect((redacted as { token: string }).token).toBe("[REDACTED_API_KEY]");
-    const f = findingFor(findings, "token");
+    expect((redacted as { leaked: string }).leaked).toBe("[REDACTED_API_KEY]");
+    const f = findingFor(findings, "leaked");
     expect(f?.findingType).toBe("api_key");
     expect(f?.severity).toBe("high");
     expect(f?.originalHash).toBe(sha256(raw));

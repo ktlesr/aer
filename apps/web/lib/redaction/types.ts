@@ -7,7 +7,8 @@ export type FindingType =
   | "api_key"
   | "bearer_token"
   | "credit_card"
-  | "national_id";
+  | "national_id"
+  | "secret";
 
 export type Severity = "low" | "medium" | "high";
 
@@ -17,7 +18,7 @@ export interface RedactionFinding {
   severity: Severity;
   /** Dotted/indexed path to the field, e.g. `customer.email` or `items[0].card`. */
   fieldPath: string;
-  /** sha256 hex of the exact matched substring. */
+  /** sha256 hex of the exact matched substring; "" when deliberately not recorded (secret fields). */
   originalHash: string;
 }
 

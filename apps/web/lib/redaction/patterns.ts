@@ -29,6 +29,31 @@ export interface RedactionPattern {
 
 const digitsOf = (s: string): string => s.replace(/\D/g, "");
 
+/**
+ * Server redaction policy. Bump on any change to what gets masked; it is stored on every run/event
+ * written under it, so old sealed rows keep their original policy label and are never re-masked.
+ * v1 = pre-label behaviour (rows with a null policy). v2 = decimal guard + secret field rules.
+ */
+export const REDACTION_POLICY = "aer-redaction/2";
+
+export const SECRET_TOKEN = "[REDACTED_SECRET]";
+
+// Field-name rules. Pattern matching cannot see a password ("hunter2" looks like any word), so a
+// value is masked by the NAME of the key holding it. Names are compared lowercased with every
+// non-alphanumeric stripped: "X-Api-Key", "api_key" and "apiKey" are all "apikey".
+// "token" is a suffix ("csrfToken", "refresh_token") but usage counters are plural and stay
+// visible ("completion_tokens", "maxTokens").
+const SECRET_NAMES = new Set(["pwd", "pin", "otp", "cvv", "cvc"]);
+const SECRET_SUFFIXES = [
+  "password", "passwd", "passphrase", "secret", "secretkey", "apikey", "accesskey", "privatekey",
+  "token", "credential", "credentials", "authorization", "cookie", "sessionid",
+];
+
+export function isSecretKey(key: string): boolean {
+  const k = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return SECRET_NAMES.has(k) || SECRET_SUFFIXES.some((s) => k.endsWith(s));
+}
+
 // Order matters: the most specific / highest-entropy patterns run first so a token can never be
 // re-detected by a looser pattern (e.g. an API key seen as a phone number). Each pattern runs on
 // the string already redacted by the previous ones.

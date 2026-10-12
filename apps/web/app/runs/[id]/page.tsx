@@ -202,7 +202,7 @@ export default async function RunDetailPage({
                   findingType: f.findingType,
                   severity: f.severity,
                   fieldPath: f.fieldPath,
-                  originalHash: `sha256:${f.originalHash}`,
+                  originalHash: f.originalHash ? `sha256:${f.originalHash}` : "not recorded",
                 })),
               }}
             />

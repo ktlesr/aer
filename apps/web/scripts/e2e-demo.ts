@@ -104,7 +104,7 @@ async function main(): Promise<void> {
   // 5. Assertions.
   const run = packet.run as { eventCount: number; status: string };
   const events = packet.events as unknown[];
-  const findings = packet.redaction_findings as Array<{ findingType: string; originalHash: string }>;
+  const findings = packet.redaction_findings as Array<{ findingType: string; originalHash: string | null }>;
   const contentHash = (packet.export as { content_hash?: string })?.content_hash ?? "";
   const raw = JSON.stringify(packet);
 
@@ -115,7 +115,10 @@ async function main(): Promise<void> {
     [`>= 2 redaction findings (got ${findings.length})`, findings.length >= 2],
     [`an email finding is present`, findings.some((f) => f.findingType === "email")],
     [`a phone finding is present`, findings.some((f) => f.findingType === "phone")],
-    [`findings store only sha256 hashes`, findings.every((f) => /^sha256:[0-9a-f]{64}$/.test(f.originalHash))],
+    [
+      `findings store only sha256 hashes (null for secret fields)`,
+      findings.every((f) => (f.findingType === "secret" ? f.originalHash === null : /^sha256:[0-9a-f]{64}$/.test(f.originalHash ?? ""))),
+    ],
     [`export carries a sha256 content_hash`, /^sha256:[0-9a-f]{64}$/.test(contentHash)],
     [`packet contains NO raw PII`, RAW_PII.every((pii) => !raw.includes(pii))],
     [`packet does NOT contain the API key`, !raw.includes(apiKey)],

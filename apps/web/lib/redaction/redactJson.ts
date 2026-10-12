@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PATTERNS } from "./patterns";
+import { PATTERNS, SECRET_TOKEN, isSecretKey } from "./patterns";
 import type { RedactionFinding, RedactionResult } from "./types";
 
 const sha256 = (value: string): string =>
@@ -33,6 +33,18 @@ function redactString(input: string): { value: string; matches: StringMatch[] } 
   }
 
   return { value, matches };
+}
+
+/**
+ * A value under a secret-named key (password, apiKey, authorization…) is replaced whole, whatever
+ * its type or shape. Its hash is NOT recorded: passwords and PINs are low-entropy, so a plain
+ * sha256 would be reversible by guessing (originalHash = "" → "not recorded").
+ */
+function redactSecret(value: unknown, path: string, findings: RedactionFinding[]): unknown {
+  // Empty or already-masked (e.g. by collector-js before sending) → nothing to find.
+  if (value === null || value === undefined || value === "" || value === SECRET_TOKEN) return value;
+  findings.push({ findingType: "secret", severity: "high", fieldPath: path, originalHash: "" });
+  return SECRET_TOKEN;
 }
 
 function joinPath(parent: string, segment: string): string {
@@ -96,7 +108,11 @@ function redactValue(
     for (const [key, val] of Object.entries(value)) {
       // Object *keys* can be sensitive too (per-email / per-token maps). Redact the key itself;
       // the field path uses the already-redacted key so no raw value leaks into a finding path.
-      const { value: redactedKey, matches } = redactString(key);
+      const { value: maskedKey, matches } = redactString(key);
+      // Two keys can mask to the same token ({"a@x.io":1,"b@x.io":2}). Never overwrite: later
+      // duplicates get "#2", "#3"… in input order, which JSON.parse preserves — deterministic.
+      let redactedKey = maskedKey;
+      for (let n = 2; Object.hasOwn(out, redactedKey); n++) redactedKey = `${maskedKey}#${n}`;
       const keyPath = joinPath(path, redactedKey);
       for (const m of matches) {
         findings.push({
@@ -106,7 +122,13 @@ function redactValue(
           originalHash: sha256(m.raw),
         });
       }
-      out[redactedKey] = redactValue(val, keyPath, findings);
+      // defineProperty, not assignment: a "__proto__" key from JSON.parse must stay data.
+      Object.defineProperty(out, redactedKey, {
+        value: isSecretKey(key) ? redactSecret(val, keyPath, findings) : redactValue(val, keyPath, findings),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
     }
     return out;
   }

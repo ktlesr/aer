@@ -254,7 +254,7 @@ function AuditDocument({ packet }: { packet: AuditPacket }) {
                   {f.severity}
                 </Text>
                 <Text style={[s.td, s.mono, { width: "30%" }]}>{f.fieldPath}</Text>
-                <Text style={[s.td, s.mono, { width: "36%" }]}>{f.originalHash}</Text>
+                <Text style={[s.td, s.mono, { width: "36%" }]}>{f.originalHash ?? "not recorded"}</Text>
               </View>
             ))}
           </View>
