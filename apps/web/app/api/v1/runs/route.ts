@@ -9,6 +9,14 @@ import {
   serializeRun,
   toJsonInput,
 } from "@/lib/api/helpers";
+import {
+  claimKey,
+  fingerprint,
+  readIdempotencyKey,
+  replayHeaders,
+  saveResult,
+  type StoredResult,
+} from "@/lib/api/idempotency";
 import { createRunSchema, parseBody } from "@/lib/validation/schemas";
 import { REDACTION_POLICY } from "@/lib/redaction";
 
@@ -18,6 +26,7 @@ export async function POST(request: Request): Promise<Response> {
     const auth = await authenticate(request);
     const data = parseBody(createRunSchema, await readJson(request));
     const sdk = parseSdkHeader(request.headers.get("x-aer-sdk"));
+    const idemKey = readIdempotencyKey(request);
 
     // Redact every persisted field, not just input/output — a secret in agentName/metadata
     // must never survive into the DB or the audit packet. The client-identity fields are
@@ -31,7 +40,21 @@ export async function POST(request: Request): Promise<Response> {
       captureDeclared: data.capture,
     });
 
-    const run = await prisma.$transaction(async (tx) => {
+    // The SDK identity header is telemetry, not meaning: it is left out of the fingerprint.
+    const requestHash = fingerprint({
+      agentName: values.agentName,
+      metadata: values.metadata ?? null,
+      environment: values.environment ?? null,
+      riskLevel: data.riskLevel ?? null,
+      capture: values.captureDeclared ?? null,
+      findings: findings.map((f) => [f.fieldPath, f.findingType, f.originalHash]),
+    });
+
+    const result = await prisma.$transaction(async (tx): Promise<StoredResult> => {
+      if (idemKey) {
+        const replay = await claimKey(tx, auth, idemKey, "run.create", null, requestHash);
+        if (replay) return replay;
+      }
       const created = await tx.agentRun.create({
         data: {
           organizationId: auth.organizationId,
@@ -62,10 +85,12 @@ export async function POST(request: Request): Promise<Response> {
         });
       }
 
-      return created;
+      const out = { status: 201, body: { run: serializeRun(created) } };
+      if (idemKey) await saveResult(tx, auth, idemKey, out);
+      return { ...out, replayed: false };
     });
 
-    return jsonOk({ run: serializeRun(run) }, 201, requestId);
+    return jsonOk(result.body, result.status, requestId, replayHeaders(result));
   } catch (err) {
     return toErrorResponse(err, requestId);
   }

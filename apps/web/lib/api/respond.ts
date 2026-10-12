@@ -8,8 +8,9 @@ export function jsonOk(
   data: unknown,
   status: number,
   requestId: string,
+  headers: Record<string, string> = {},
 ): Response {
-  return Response.json(data, { status, headers: withRequestId(requestId) });
+  return Response.json(data, { status, headers: { ...headers, "x-request-id": requestId } });
 }
 
 export function jsonError(

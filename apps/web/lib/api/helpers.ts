@@ -46,6 +46,32 @@ export async function requireRun(
   return run;
 }
 
+/**
+ * Interactive-transaction limits for writes that queue on a run's row lock. Concurrent writes to
+ * ONE run are serialised, so a burst waits its turn instead of failing; past these limits the
+ * request fails with 500 and a retry with the same Idempotency-Key is safe.
+ */
+export const RUN_TX = { maxWait: 10_000, timeout: 20_000 } as const;
+
+/**
+ * Lock the run row (SELECT … FOR UPDATE) and return its current state. Every write that changes a
+ * run's chain or status — event append, complete — takes this lock first, so they serialise per
+ * run: sequence numbers, chain head, counters and status are read and written atomically.
+ */
+export async function lockRun(
+  tx: Prisma.TransactionClient,
+  runId: string,
+  auth: AuthContext,
+): Promise<AgentRun> {
+  const locked = await tx.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "AgentRun"
+    WHERE "id" = ${runId} AND "organizationId" = ${auth.organizationId} AND "projectId" = ${auth.projectId}
+    FOR UPDATE`;
+  if (locked.length === 0) throw new ApiError("not_found", "Run not found", 404);
+  // Read after the lock is held: READ COMMITTED gives this statement a fresh snapshot.
+  return tx.agentRun.findUniqueOrThrow({ where: { id: runId } });
+}
+
 /** Cast an arbitrary redacted value to a Prisma JSON input (undefined stays undefined). */
 export function toJsonInput(value: unknown): Prisma.InputJsonValue | undefined {
   return value === undefined ? undefined : (value as Prisma.InputJsonValue);

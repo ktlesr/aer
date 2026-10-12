@@ -93,9 +93,10 @@ model Organization {
   ownerUserId String? @unique
   owner       User?   @relation(fields: [ownerUserId], references: [id], onDelete: SetNull)
 
-  projects Project[]
-  apiKeys  ApiKey[]
-  runs     AgentRun[]
+  projects           Project[]
+  apiKeys            ApiKey[]
+  runs               AgentRun[]
+  idempotencyRecords IdempotencyRecord[]
 }
 
 model Project {
@@ -240,6 +241,28 @@ model AuditExport {
 
   @@index([runId])
   @@index([organizationId, projectId])
+}
+
+/// Idempotency-Key ledger for POST /runs, /events, /complete. Claimed inside the same transaction
+/// as the write it guards, so a rolled-back write leaves no claim. Stores only a sha256 of the
+/// already-redacted request (never the raw body) and the non-sensitive response (ids, counts).
+model IdempotencyRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  key            String   @db.VarChar(200)
+  operation      String   @db.VarChar(40) // "run.create" | "event.create" | "run.complete"
+  runId          String?
+  requestHash    String   @db.VarChar(64)
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, projectId, key]) // tenant-scoped: the same key in two orgs never collides
+  @@index([expiresAt])
 }
 
 // ---------------------------------------------------------------------------

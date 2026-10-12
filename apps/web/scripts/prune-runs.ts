@@ -93,6 +93,11 @@ async function main(): Promise<void> {
 
   try {
     await pruneRuns(prisma, opts);
+    // Expired Idempotency-Key claims carry no evidence (they are also reclaimed lazily on reuse).
+    if (opts.apply) {
+      const expired = await prisma.idempotencyRecord.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+      console.log(`Deleted ${expired.count} expired idempotency record(s).`);
+    }
   } finally {
     await prisma.$disconnect();
   }
