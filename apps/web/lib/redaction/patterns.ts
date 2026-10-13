@@ -33,8 +33,9 @@ const digitsOf = (s: string): string => s.replace(/\D/g, "");
  * Server redaction policy. Bump on any change to what gets masked; it is stored on every run/event
  * written under it, so old sealed rows keep their original policy label and are never re-masked.
  * v1 = pre-label behaviour (rows with a null policy). v2 = decimal guard + secret field rules.
+ * v3 = v2 + name/value pairs: `value` is a secret when the pair's `key`/`name` is secret-named.
  */
-export const REDACTION_POLICY = "aer-redaction/2";
+export const REDACTION_POLICY = "aer-redaction/3";
 
 export const SECRET_TOKEN = "[REDACTED_SECRET]";
 

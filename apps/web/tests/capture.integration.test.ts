@@ -92,3 +92,33 @@ describe("capture policy — server label + client declaration, end to end", () 
     expect((stored.packet as unknown as AuditPacket).run.capture).toEqual({ server_applied: null, client_declared: null });
   });
 });
+
+// Review of 7fbe700 (P2): the name/value pair rule changed what gets masked, so it ships under a new
+// policy id. Rows written by the previous release keep their label; nothing is re-masked or relabelled.
+describe("policy versioning", () => {
+  it("new writes are labelled aer-redaction/3; an existing /2 row keeps its label; the chain still verifies", async () => {
+    expect(REDACTION_POLICY).toBe("aer-redaction/3");
+    const res = await createRun(req("POST", "/api/v1/runs", { token: KEY, body: { agentName: "mixed-policy" } }));
+    const runId = (await res.json()).run.id as string;
+    const send = (title: string, metadata?: unknown) =>
+      addEvent(req("POST", `/api/v1/runs/${runId}/events`, { token: KEY, body: { type: "tool_call", title, metadata } }), ctx({ run_id: runId }));
+
+    expect((await send("before upgrade")).status).toBe(201);
+    // Stand-in for a row the previous release wrote: same content, its own (older) label.
+    await prisma.agentRun.update({ where: { id: runId }, data: { redactionPolicy: "aer-redaction/2" } });
+    await prisma.agentEvent.updateMany({ where: { runId }, data: { redactionPolicy: "aer-redaction/2" } });
+
+    expect((await send("after upgrade", { headers: [{ key: "password", value: "synthetic-pw" }] })).status).toBe(201);
+    await completeRun(req("POST", `/api/v1/runs/${runId}/complete`, { token: KEY, body: { status: "completed" } }), ctx({ run_id: runId }));
+
+    const exp = await createExport(req("POST", `/api/v1/runs/${runId}/exports?type=json`, { token: KEY }), ctx({ run_id: runId }));
+    const exportId = (await exp.json()).export.id as string;
+    const dl = await downloadExport(req("GET", `/api/v1/runs/${runId}/exports/${exportId}/download`, { token: KEY }), ctx({ run_id: runId, export_id: exportId }));
+    const packet = JSON.parse(await dl.text()) as AuditPacket;
+
+    expect(packet.run.capture.server_applied).toEqual({ layer: "server", policy: "aer-redaction/2" });
+    expect(packet.events.map((e) => e.capture.server_applied?.policy)).toEqual(["aer-redaction/2", "aer-redaction/3"]);
+    expect(packet.events[1].metadata).toEqual({ headers: [{ key: "password", value: "[REDACTED_SECRET]" }] });
+    expect(verifyChain(packetToChainLinks(packet), packetSeal(packet), runId)).toMatchObject({ ok: true, status: "verified" });
+  });
+});

@@ -46,11 +46,16 @@ Bütün yeni alanlar opsiyoneldir. `sourced` olayda sürümlü bir bloktur
 - **Gerekçe kapsamı (§7.3).** Model düşünce zinciri istenmez ve kabul edilmez (strict şema;
   örn. `reasoning` alanı `422`). Kayıt; kaynakları, bağlamı ve kullanıcıya sunulan cevabı tutar.
 - **Maskeleme.** `sourced` ve bağlantı alanları diğer alanlar gibi sunucuda maskelenir
-  (`aer-redaction/2`); bağlamdaki e-posta `[REDACTED_EMAIL]` olur, ondalık puan korunur.
+  (`aer-redaction/3`); bağlamdaki e-posta `[REDACTED_EMAIL]` olur, ondalık puan korunur.
   Bulgular olayın bulgularına eklenir (`sourced.context.used[4].value`).
 - **Ad/değer çiftleri.** Bağlam alanının adı veridir (`{key: "password", value}`). `key` veya
   `name` gizli alan kuralına uyan bir nesnenin `value`'su bütünüyle `[REDACTED_SECRET]` olur ve
   hash'i kaydedilmez (sunucu ve SDK, her yerde — ör. başlık listeleri `{name: "Authorization"}`).
+  Bu kural maskelenen veriyi değiştirdiği için sunucu politikası **`aer-redaction/3`** oldu
+  (v2 = ondalık koruması + gizli alan adları; v3 = v2 + ad/değer çiftleri). Etiket her satıra
+  yazıldığından önceki sürümle yazılmış satırlar `aer-redaction/2` (veya `null`) etiketini korur;
+  hiçbir satır yeniden maskelenmez ya da yeniden etiketlenmez. Test: aynı run'da `/2` ve `/3`
+  olayları ayrı etiketlerle export edilir, zincir `verified`.
 
 ## 3. Eksik bağlam (`missing_context`)
 
@@ -131,7 +136,10 @@ eski run DB ve paket yolundan `verified`, `links` boş, tüm olaylarda `sourced:
 | P1 `key: "password"` bağlam değeri açık | Alan kuralı yalnızca JSON anahtarına bakıyordu; çiftte ad veri olarak duruyor | Ad/değer çifti kuralı (sunucu + SDK) | `fieldRules.test.ts`, `sourced.integration.test.ts`, `sourced.test.ts` |
 | P1 imzalı URL `id` alanında | Kural yalnız `archiveRef`'teydi | Tüm kaynak metin alanlarına erişim-URI reddi | `sourced.integration.test.ts` (6 varyant + kabul edilen düz URL) |
 
-İnceleyicinin dört repro testi değiştirilmeden yeni kodda çalıştırıldı: 4/4 geçti.
+| P2 değişen maskeleme aynı etiketle (7fbe700 incelemesi) | Ad/değer kuralı politika sürümü artırılmadan eklendi | `REDACTION_POLICY = "aer-redaction/3"` | `capture.integration.test.ts` (karışık /2 + /3 run) |
+
+İnceleyicinin dört repro testi ve politika karşılaştırma testi değiştirilmeden yeni kodda
+çalıştırıldı: 5/5 geçti.
 
 ## 9. Sınırlar
 
