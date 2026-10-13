@@ -23,25 +23,33 @@ const refSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/, "1–2
 const isoTimeSchema = z.string().refine((v) => !Number.isNaN(Date.parse(v)), "must be an ISO datetime");
 const short = (max: number) => z.string().min(1).max(max);
 
+// Access material in a URI: a query parameter (?X-Amz-Signature=…, &sig=…) or userinfo
+// (https://user:pass@host). A signed link grants access to the document, so no source field may
+// carry one — whichever field the app puts it in. Plain paths/URLs without these are fine.
+const ACCESS_URI = /[?&][^\s=&]+=|[a-z][a-z0-9+.-]*:\/\/[^\s/]*@/i;
+const sourceText = (max: number) =>
+  short(max).refine((v) => !ACCESS_URI.test(v), "must not contain a URI query string or credentials");
+
 /**
  * One source document/chunk. The hash names its algorithm (prefix) and its scope (which bytes were
  * hashed) — a bare hash says nothing a reader can re-check. archiveRef is an opaque pointer, never
- * a URL with a query string, credentials or spaces (signed URLs must not land in a packet).
+ * a URL with a query string, credentials or spaces; no other source field may carry query
+ * parameters or credentials either (signed URLs must not land in a packet).
  * A score needs its method: scores from different retrievers are not comparable.
  */
 const sourceSchema = z
   .object({
-    id: short(200),
-    version: short(100).optional(),
-    title: short(300).optional(),
+    id: sourceText(200),
+    version: sourceText(100).optional(),
+    title: sourceText(300).optional(),
     contentHash: z.string().regex(/^sha256:[0-9a-f]{64}$/, "sha256:<64 lowercase hex>").optional(),
-    hashScope: short(100).optional(),
+    hashScope: sourceText(100).optional(),
     archiveRef: z
       .string()
       .regex(/^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,299}$/, "opaque ref: no query string, credentials or spaces")
       .optional(),
     score: z.number().finite().optional(),
-    scoreMethod: short(100).optional(),
+    scoreMethod: sourceText(100).optional(),
   })
   .strict()
   .refine((s) => s.contentHash === undefined || s.hashScope !== undefined, "contentHash requires hashScope")
@@ -88,7 +96,7 @@ export const sourcedSchema = z
         z
           .object({
             claim: short(1000),
-            sourceIds: z.array(short(200)).min(1).max(20),
+            sourceIds: z.array(sourceText(200)).min(1).max(20),
             basis: z.enum(["model_declared", "assessed"]),
           })
           .strict(),

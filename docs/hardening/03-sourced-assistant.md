@@ -30,7 +30,11 @@ Bütün yeni alanlar opsiyoneldir. `sourced` olayda sürümlü bir bloktur
   `hashScope` (hangi baytlar: ör. `chunk_text_utf8`) ile kabul edilir. Hash içeriği geri getirmez;
   `archiveRef` yoksa yalnızca kimlik/hash kaydedildiği görünür ("no archive ref").
 - **Hassas URI yok.** `archiveRef` opak bir işaretçidir: sorgu dizgesi (`?`, `=`, `&`), kimlik
-  bilgisi (`@`), boşluk reddedilir — imzalı URL pakete giremez. Hata mesajı değeri yankılamaz.
+  bilgisi (`@`), boşluk reddedilir. Kaynağın **diğer bütün metin alanları** (`id`, `version`,
+  `title`, `hashScope`, `scoreMethod`) ve `claimSourceLinks[].sourceIds` de sorgu parametresi
+  (`?x=` / `&x=`, şemasız olsa bile) veya kimlik bilgili URI (`scheme://user:pass@`) taşıyamaz:
+  `422`, hiçbir şey yazılmaz, değer yankılanmaz. Sorgusuz düz URL ve dosya adları kabul edilir.
+  Sınır: `context.used[].value` ve `claim` serbest metindir; bu kural onlara uygulanmaz.
 - **Çıkarım doğrulanmış gibi gösterilmez.** `origin: "inferred"` "inferred — not confirmed" olarak
   gösterilir.
 - **Uydurma yok.** Gönderilmeyen üretim alanları ve bölümler pakette `not_recorded` listesinde,
@@ -40,6 +44,9 @@ Bütün yeni alanlar opsiyoneldir. `sourced` olayda sürümlü bir bloktur
 - **Maskeleme.** `sourced` ve bağlantı alanları diğer alanlar gibi sunucuda maskelenir
   (`aer-redaction/2`); bağlamdaki e-posta `[REDACTED_EMAIL]` olur, ondalık puan korunur.
   Bulgular olayın bulgularına eklenir (`sourced.context.used[4].value`).
+- **Ad/değer çiftleri.** Bağlam alanının adı veridir (`{key: "password", value}`). `key` veya
+  `name` gizli alan kuralına uyan bir nesnenin `value`'su bütünüyle `[REDACTED_SECRET]` olur ve
+  hash'i kaydedilmez (sunucu ve SDK, her yerde — ör. başlık listeleri `{name: "Authorization"}`).
 
 ## 3. Eksik bağlam (`missing_context`)
 
@@ -76,8 +83,10 @@ org+proje içinde** aranır:
   (içeriği değil — yanıtlar idempotency defterinde saklanır).
 - Capture modları: `allowlist` yalnız listelenen `sourced.*` yollarını gönderir (profil etiketi
   korunur); `metadata_only` `sourced` göndermez; `conversationRef`/`turnRef` kısıtlı modlarda
-  yalnız listelenirse gider; `parentRunId` (AER'in kendi id'si) her zaman gider. Maskeleme hatası
-  (`failed_closed`) bunları da göndermez.
+  yalnız listelenirse gider; `parentRunId` (AER'in kendi id'si) başarılı maskelemeden sonra gider.
+  Maskeleme hatasında (`failed_closed`) yalnızca içerik taşımayan alanlar gönderilir: `type`,
+  `seq`, `riskLevel`, `costMicroUsd`, `status` ve genel `title`/`agentName` — `parentRunId` dahil
+  diğer her alan düşer. Bu bir izin listesidir; ileride eklenecek alanlar varsayılan olarak düşer.
 
 | İstemci → Sunucu | ≤ 13d6240 (bu teslim öncesi) | Bu teslim |
 | --- | --- | --- |
@@ -110,7 +119,17 @@ eski run DB ve paket yolundan `verified`, `links` boş, tüm olaylarda `sourced:
 | `apps/web/components/sourced-evidence.test.tsx` | Dashboard etiketleri: çıkarım, aday/dayanak ayrımı, "not recorded", `missing_context` link değil | Hayır |
 | `packages/collector-js/src/sourced.test.ts` | Onay bayrakları (yeni/eski sunucu), `metadata_only`, `allowlist`, fail-closed | Hayır |
 
-## 8. Sınırlar
+## 8. Bağımsız inceleme düzeltmeleri (e8ea465 sonrası)
+
+| Bulgu | Kök neden | Düzeltme | Regresyon |
+| --- | --- | --- | --- |
+| P1 hata yolunda ham `parentRunId` | `failed_closed` ham gövdeyi yayıp bilinen içerik alanlarını siliyordu (kara liste) | İçeriksiz alan izin listesi | `sourced.test.ts` |
+| P1 `key: "password"` bağlam değeri açık | Alan kuralı yalnızca JSON anahtarına bakıyordu; çiftte ad veri olarak duruyor | Ad/değer çifti kuralı (sunucu + SDK) | `fieldRules.test.ts`, `sourced.integration.test.ts`, `sourced.test.ts` |
+| P1 imzalı URL `id` alanında | Kural yalnız `archiveRef`'teydi | Tüm kaynak metin alanlarına erişim-URI reddi | `sourced.integration.test.ts` (6 varyant + kabul edilen düz URL) |
+
+İnceleyicinin dört repro testi değiştirilmeden yeni kodda çalıştırıldı: 4/4 geçti.
+
+## 9. Sınırlar
 
 - AER uygulamanın bildirdiğini kaydeder: kaynağın doğru, güncel veya hukuken uygulanabilir olduğunu,
   bağlamın gerçekten kullanıldığını ya da dayanak bağının doğru olduğunu doğrulamaz

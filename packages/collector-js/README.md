@@ -154,8 +154,10 @@ await run.event({
 - `claimSourceLinks[].sourceIds` must be in `citedSources`. `basis: "assessed"` requires an
   `assessment: { method, version, result }` describing the separate check.
 - `contentHash` must be `sha256:<hex>` with a `hashScope` naming the bytes hashed. A hash proves
-  which version was cited, not what it said — keep `archiveRef` to retrieve it. `archiveRef` is
-  rejected if it looks like a URL with a query string (no signed URLs in evidence).
+  which version was cited, not what it said — keep `archiveRef` to retrieve it. No source field
+  (`id`, `title`, `archiveRef`…) may contain a query string or credentials — a signed URL is
+  rejected with `422` wherever it is put.
+- A context entry with a secret-named `key` (`password`, `apiToken`…) is masked whole.
 - Do not send model reasoning / chain of thought; record the sources, tool results and the
   explanation the user was shown.
 - Capture modes: `allowlist` keeps only the `sourced.*` paths you list; `metadata_only` sends no

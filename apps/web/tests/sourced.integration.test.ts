@@ -238,3 +238,52 @@ describe("collector-js 0.4 end to end", () => {
     expect(row.sourced).toMatchObject({ citedSources: [{ contentHash: H1 }], generation: { model: "m-1" } });
   });
 });
+
+// Independent review (e8ea465) regressions.
+describe("review e8ea465: secrets and access URIs in the sourced block", () => {
+  const PASSWORD = "synthetic-password-without-token-pattern";
+
+  it("a context entry named password is masked whole: not stored, not exported, hash not recorded", async () => {
+    const run = await startRun({});
+    const res = await event(run.id, {
+      type: "model_call",
+      title: "t",
+      sourced: { profile: "sourced_assistant", version: 1, context: { used: [{ key: "password", value: PASSWORD, origin: "user_stated" }, { key: "ilce", value: "Milas", origin: "user_stated" }] } },
+    });
+    expect(res.status).toBe(201);
+    const row = await prisma.agentEvent.findFirstOrThrow({ where: { runId: run.id } });
+    expect(JSON.stringify(row.sourced)).not.toContain(PASSWORD);
+    const p = await packetOf(run.id);
+    expect(JSON.stringify(p)).not.toContain(PASSWORD);
+    expect(p.events[0].sourced!.context!.used!.map((c) => c.value)).toEqual(["[REDACTED_SECRET]", "Milas"]);
+    expect(p.events[0].findings).toContainEqual({
+      findingType: "secret", severity: "high", fieldPath: "sourced.context.used[0].value", originalHash: null,
+    });
+  });
+
+  const leaks: Array<[string, Record<string, unknown>]> = [
+    ["signed URL as source id", { citedSources: [{ id: "https://bucket.example.invalid/doc?X-Amz-Signature=synthetic" }] }],
+    ["scheme-less signed link as id", { retrievedSources: [{ id: "bucket.example.invalid/doc?sig=synthetic" }] }],
+    ["credentials in a URI id", { citedSources: [{ id: "https://user:synthetic@host.example.invalid/doc" }] }],
+    ["signed URL in title", { citedSources: [{ id: "a", title: "see https://x.example.invalid/d?token=synthetic" }] }],
+    ["signed URL in version", { citedSources: [{ id: "a", version: "v1?sig=synthetic" }] }],
+    ["signed URL as claim source id", { claimSourceLinks: [{ claim: "c", sourceIds: ["https://x.example.invalid/d?sig=synthetic"], basis: "model_declared" }] }],
+  ];
+  it.each(leaks)("%s → 422, nothing stored, value not echoed", async (_n, extra) => {
+    const run = await startRun({});
+    const res = await event(run.id, { type: "model_call", title: "t", sourced: { profile: "sourced_assistant", version: 1, ...extra } });
+    expect(res.status).toBe(422);
+    expect(await res.text()).not.toContain("synthetic");
+    expect(await prisma.agentEvent.count({ where: { runId: run.id } })).toBe(0);
+  });
+
+  it("plain URLs and file names without access material are still accepted as ids", async () => {
+    const run = await startRun({});
+    const res = await event(run.id, {
+      type: "model_call",
+      title: "t",
+      sourced: { profile: "sourced_assistant", version: 1, citedSources: [{ id: "https://mevzuat.example.invalid/9903#madde-9" }, { id: "Yatırım Kararı 2024.pdf" }] },
+    });
+    expect(res.status).toBe(201);
+  });
+});
