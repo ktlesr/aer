@@ -43,8 +43,9 @@ export function verifyChain(
     checked++;
   }
 
-  // seal is null while a run is still running; only enforce once frozen.
-  if (seal !== null && seal !== prev) {
+  // seal is null while a run is still running: nothing to compare the head against yet.
+  if (seal === null) return { ok: true, status: "consistent_unsealed", checkedCount: checked };
+  if (seal !== prev) {
     const lastSeq = ordered.length ? ordered[ordered.length - 1].seq : 0;
     return {
       ok: false,

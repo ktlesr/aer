@@ -28,5 +28,7 @@ export interface ChainLink extends EventCore {
 
 export type VerifyResult =
   | { ok: true; status: "verified"; checkedCount: number }
+  // Every link checks out but the run has no seal yet: consistent SO FAR, not a finished record.
+  | { ok: true; status: "consistent_unsealed"; checkedCount: number }
   | { ok: false; status: "broken"; brokenSeq: number; reason: string; checkedCount: number }
   | { ok: false; status: "legacy"; reason: string };

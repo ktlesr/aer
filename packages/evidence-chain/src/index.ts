@@ -6,3 +6,17 @@ export { canonicalize } from "./canonicalize";
 export { genesisHash, hashEvent } from "./hash";
 export { computeChain } from "./chain";
 export { verifyChain } from "./verify";
+export { buildManifest, manifestHash, type Manifest, type ManifestInput } from "./manifest";
+export {
+  signReceipt,
+  publicKeyOf,
+  checkReceiptSignature,
+  type Receipt,
+  type ReceiptStatement,
+  type ReceiptSignature,
+  type TrustedKey,
+  type SignatureCheck,
+} from "./receipt";
+export { verifyPacket, packetChainLinks, manifestInputFromPacket, packetContentHash, type PacketReport, type VerifyPacketOptions } from "./packet";
+export * from "./versions";
+export { unrepresentableKeyPath } from "./representable";

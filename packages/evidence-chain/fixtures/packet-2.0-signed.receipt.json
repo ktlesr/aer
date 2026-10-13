@@ -1,0 +1,19 @@
+{
+  "statement": {
+    "receipt_version": "aer-receipt/1",
+    "run_id": "cmv7093gs0001qojelblpvmh8",
+    "organization_id": "org_fixture_synthetic",
+    "project_id": "org_fixture_synthetic_proj",
+    "manifest_version": "aer-manifest/1",
+    "manifest_hash": "sha256:d31a72ef4baad2894f9abfc3123793cbc4b2389de4ac4b5b6b6e1cb3185c88d7",
+    "chain_head": "sha256:2ecde567389fb36e1f640721aaa0ff341a52c22fc92e1b7c356f6a5d7f2f283a",
+    "event_count": 2,
+    "issued_at": "2026-10-13T18:19:10.233Z",
+    "clock": "aer-server"
+  },
+  "signature": {
+    "alg": "Ed25519",
+    "key_id": "fixture-key-1",
+    "value": "MMRZHclkk122MLXighbUBFVW4k7TKO1SNxZtDylc/RehGfPH5vyCZx8+6GlEls7tLeMmbJ9MsAHZYIuEiJU4Cw=="
+  }
+}

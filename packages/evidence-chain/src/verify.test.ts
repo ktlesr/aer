@@ -77,7 +77,7 @@ describe("verifyChain", () => {
 
   it("verifies a running run (seal null)", () => {
     const { links } = build("r", 2);
-    expect(verifyChain(links, null, "r").ok).toBe(true);
+    expect(verifyChain(links, null, "r")).toMatchObject({ ok: true, status: "consistent_unsealed" });
   });
 
   it("seals an empty run to genesis", () => {

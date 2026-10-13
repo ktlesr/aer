@@ -22,7 +22,7 @@ const COPY: Record<
     broken: true,
   },
   pending: {
-    label: () => "Sealing pending",
+    label: () => "Consistent so far · not sealed",
     note: "The run is still in progress; the chain head is sealed on completion.",
     broken: false,
   },

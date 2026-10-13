@@ -74,7 +74,7 @@ describe("evidence chain — write path + seal", () => {
     expect(links).toHaveLength(3);
     expect(links.every((l) => l.hash && l.prevHash)).toBe(true);
     // seal is null while running.
-    expect(verifyChain(links, null, runId)).toMatchObject({ ok: true, status: "verified" });
+    expect(verifyChain(links, null, runId)).toMatchObject({ ok: true, status: "consistent_unsealed" });
   });
 
   it("seals the head on complete and verifies end-to-end", async () => {

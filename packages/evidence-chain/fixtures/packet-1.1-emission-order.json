@@ -1,0 +1,243 @@
+{
+  "schema_version": "1.1",
+  "run": {
+    "id": "run_demo",
+    "agentName": "Customer Data Deletion Agent",
+    "status": "completed",
+    "riskLevel": "high",
+    "startedAt": "2026-06-14T09:00:00.000Z",
+    "endedAt": "2026-06-14T09:02:00.000Z",
+    "durationMs": 120000,
+    "costMicroUsd": 4200,
+    "eventCount": 9,
+    "redactionCount": 2
+  },
+  "events": [
+    {
+      "seq": 1,
+      "type": "run_started",
+      "title": "Run started",
+      "occurredAt": "2026-06-14T09:00:00.000Z",
+      "inputRedacted": null,
+      "outputRedacted": null,
+      "riskLevel": null,
+      "costMicroUsd": null,
+      "metadata": {
+        "source": "demo-agent"
+      },
+      "hash": "sha256:d226dd6ca106a20e32fc277ffd41377e30608fd0f30b368fde88c840222d64f8",
+      "prevHash": "sha256:71aa0c670be31eb272aff1f75e560f9f8f1938b21df4e26e272665b7293eb6d9",
+      "findings": []
+    },
+    {
+      "seq": 2,
+      "type": "user_input",
+      "title": "Customer requests data deletion",
+      "occurredAt": "2026-06-14T09:00:05.000Z",
+      "inputRedacted": {
+        "request": "Please delete all of my personal data under GDPR.",
+        "customer": {
+          "name": "Jane Doe",
+          "email": "[REDACTED_EMAIL]",
+          "phone": "[REDACTED_PHONE]"
+        }
+      },
+      "outputRedacted": null,
+      "riskLevel": "medium",
+      "costMicroUsd": null,
+      "metadata": {
+        "channel": "support_email"
+      },
+      "hash": "sha256:3e132c18eeef5c8ef6873d5c03bbef7f58b557b05c90a3de60d56d2ddbf6949b",
+      "prevHash": "sha256:d226dd6ca106a20e32fc277ffd41377e30608fd0f30b368fde88c840222d64f8",
+      "findings": [
+        {
+          "findingType": "email",
+          "severity": "medium",
+          "fieldPath": "input.customer.email",
+          "originalHash": "sha256:86e0b9e56c17cc4d12387e1949b85053fbe73bc3ce5a1188713a9d300cc6133d"
+        },
+        {
+          "findingType": "phone",
+          "severity": "medium",
+          "fieldPath": "input.customer.phone",
+          "originalHash": "sha256:c6b1e698a020cf7d47f26043a11c99e1152314292af7da74a2e07532a0de9c83"
+        }
+      ]
+    },
+    {
+      "seq": 3,
+      "type": "model_call",
+      "title": "Plan deletion steps",
+      "occurredAt": "2026-06-14T09:00:08.000Z",
+      "inputRedacted": null,
+      "outputRedacted": {
+        "plan": [
+          "locate customer",
+          "check retention policy",
+          "request approval"
+        ]
+      },
+      "riskLevel": null,
+      "costMicroUsd": 4200,
+      "metadata": {
+        "model": "claude-opus-4-8",
+        "tokensIn": 612,
+        "latencyMs": 1840,
+        "tokensOut": 188
+      },
+      "hash": "sha256:38e1a16fb631445bb220567afdb2aaccefd893ef628fc6970cbc5bb2287dcd4a",
+      "prevHash": "sha256:3e132c18eeef5c8ef6873d5c03bbef7f58b557b05c90a3de60d56d2ddbf6949b",
+      "findings": []
+    },
+    {
+      "seq": 4,
+      "type": "tool_call",
+      "title": "search_customer",
+      "occurredAt": "2026-06-14T09:00:12.000Z",
+      "inputRedacted": {
+        "query": {
+          "email": "[REDACTED_EMAIL]"
+        }
+      },
+      "outputRedacted": {
+        "found": true,
+        "records": 3,
+        "customerId": "cus_8842"
+      },
+      "riskLevel": null,
+      "costMicroUsd": null,
+      "metadata": {
+        "tool": "search_customer",
+        "latencyMs": 220
+      },
+      "hash": "sha256:a8330cceb838a56a4e9b8f85b749d859236466a22a233cac2b9e710352a592a2",
+      "prevHash": "sha256:38e1a16fb631445bb220567afdb2aaccefd893ef628fc6970cbc5bb2287dcd4a",
+      "findings": []
+    },
+    {
+      "seq": 5,
+      "type": "tool_call",
+      "title": "check_data_policy",
+      "occurredAt": "2026-06-14T09:00:16.000Z",
+      "inputRedacted": {
+        "customerId": "cus_8842"
+      },
+      "outputRedacted": {
+        "holds": [],
+        "deletable": true,
+        "retentionDays": 30
+      },
+      "riskLevel": null,
+      "costMicroUsd": null,
+      "metadata": {
+        "tool": "check_data_policy",
+        "latencyMs": 95
+      },
+      "hash": "sha256:be8a6bbac90a8ca0463e7a36c33930b3bf5690d8cd5daf39d4cd00edb17edfda",
+      "prevHash": "sha256:a8330cceb838a56a4e9b8f85b749d859236466a22a233cac2b9e710352a592a2",
+      "findings": []
+    },
+    {
+      "seq": 6,
+      "type": "redaction_applied",
+      "title": "PII redacted",
+      "occurredAt": "2026-06-14T09:00:18.000Z",
+      "inputRedacted": null,
+      "outputRedacted": {
+        "types": [
+          "email",
+          "phone"
+        ],
+        "findings": 2
+      },
+      "riskLevel": "high",
+      "costMicroUsd": null,
+      "metadata": {
+        "redactor": "redactJson@v1"
+      },
+      "hash": "sha256:82c854cc2d0633b7e353b0a4cdf06581a29245c80348a034f4a39e1b7cdfbc9d",
+      "prevHash": "sha256:be8a6bbac90a8ca0463e7a36c33930b3bf5690d8cd5daf39d4cd00edb17edfda",
+      "findings": []
+    },
+    {
+      "seq": 7,
+      "type": "human_approval_requested",
+      "title": "Awaiting human approval for irreversible deletion",
+      "occurredAt": "2026-06-14T09:00:22.000Z",
+      "inputRedacted": null,
+      "outputRedacted": {
+        "reason": "irreversible deletion",
+        "approver": "ops-oncall",
+        "decision": "pending"
+      },
+      "riskLevel": "high",
+      "costMicroUsd": null,
+      "metadata": {
+        "approvalId": "appr_5521"
+      },
+      "hash": "sha256:e8c0d960c351bd81724a088cda4411b4e326e67a1953dfdb6d40a313fe73f77c",
+      "prevHash": "sha256:82c854cc2d0633b7e353b0a4cdf06581a29245c80348a034f4a39e1b7cdfbc9d",
+      "findings": []
+    },
+    {
+      "seq": 8,
+      "type": "final_output",
+      "title": "Deletion scheduled",
+      "occurredAt": "2026-06-14T09:01:55.000Z",
+      "inputRedacted": null,
+      "outputRedacted": {
+        "result": "Customer data deletion scheduled",
+        "ticket": "DEL-1042"
+      },
+      "riskLevel": null,
+      "costMicroUsd": null,
+      "metadata": {
+        "ticket": "DEL-1042"
+      },
+      "hash": "sha256:82d1b22c03ce87cb153dd5096d456fd6e8db72cac77e512c42ade40d024aed12",
+      "prevHash": "sha256:e8c0d960c351bd81724a088cda4411b4e326e67a1953dfdb6d40a313fe73f77c",
+      "findings": []
+    },
+    {
+      "seq": 9,
+      "type": "run_completed",
+      "title": "Run completed",
+      "occurredAt": "2026-06-14T09:02:00.000Z",
+      "inputRedacted": null,
+      "outputRedacted": null,
+      "riskLevel": null,
+      "costMicroUsd": null,
+      "metadata": {
+        "outcome": "completed"
+      },
+      "hash": "sha256:b4ee618caabcd0eec5ac24de71648b210df3a97b95968f24251dea6c2e7e9f04",
+      "prevHash": "sha256:82d1b22c03ce87cb153dd5096d456fd6e8db72cac77e512c42ade40d024aed12",
+      "findings": []
+    }
+  ],
+  "redaction_findings": [
+    {
+      "findingType": "email",
+      "severity": "medium",
+      "fieldPath": "input.customer.email",
+      "originalHash": "sha256:86e0b9e56c17cc4d12387e1949b85053fbe73bc3ce5a1188713a9d300cc6133d"
+    },
+    {
+      "findingType": "phone",
+      "severity": "medium",
+      "fieldPath": "input.customer.phone",
+      "originalHash": "sha256:c6b1e698a020cf7d47f26043a11c99e1152314292af7da74a2e07532a0de9c83"
+    }
+  ],
+  "chain": {
+    "algorithm": "sha256",
+    "genesis": "sha256:71aa0c670be31eb272aff1f75e560f9f8f1938b21df4e26e272665b7293eb6d9"
+  },
+  "seal": "sha256:b4ee618caabcd0eec5ac24de71648b210df3a97b95968f24251dea6c2e7e9f04",
+  "export": {
+    "type": "json",
+    "generatedAt": "2026-10-13T12:00:00.000Z",
+    "content_hash": "sha256:995396fc822504b7f896f20555e6217cdfbf07d34a17440f5f9e44ab176ca6ae"
+  }
+}

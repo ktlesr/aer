@@ -40,6 +40,10 @@ async function main(): Promise<number> {
 
     const result = verifyChain(links, run.seal, run.id);
 
+    if (result.ok && result.status === "consistent_unsealed") {
+      console.log(`CONSISTENT, NOT SEALED (${result.checkedCount} events so far) — run ${runId}`);
+      return 3;
+    }
     if (result.ok) {
       console.log(`PASS (${result.checkedCount} events) — run ${runId}`);
       return 0;

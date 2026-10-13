@@ -1,0 +1,171 @@
+{
+  "run": {
+    "id": "cmv7093gs0001qojelblpvmh8",
+    "links": {
+      "turnRef": "t2",
+      "parentRun": {
+        "id": "run_synth_prev",
+        "status": "missing_context",
+        "agentName": null
+      },
+      "conversationRef": "conv-synth"
+    },
+    "status": "completed",
+    "capture": {
+      "server_applied": {
+        "layer": "server",
+        "policy": "aer-redaction/3"
+      },
+      "client_declared": null
+    },
+    "endedAt": "2026-10-13T18:19:10.224Z",
+    "agentName": "tesvik-asistani",
+    "projectId": "org_fixture_synthetic_proj",
+    "riskLevel": "low",
+    "startedAt": "2026-10-13T18:19:10.156Z",
+    "durationMs": 68,
+    "eventCount": 2,
+    "environment": null,
+    "costMicroUsd": 0,
+    "organizationId": "org_fixture_synthetic",
+    "redactionCount": 0
+  },
+  "seal": "sha256:2ecde567389fb36e1f640721aaa0ff341a52c22fc92e1b7c356f6a5d7f2f283a",
+  "chain": {
+    "genesis": "sha256:5140df97b172f42a9f839d63663a66cd8d5bc31e249be33a693231dc2ee5e9db",
+    "algorithm": "sha256"
+  },
+  "events": [
+    {
+      "seq": 1,
+      "hash": "sha256:05c598d5f405c3a4f7db1038a447a402c14268ad1760fdacf09ed6ea471399b8",
+      "type": "model_call",
+      "title": "question",
+      "capture": {
+        "server_applied": {
+          "layer": "server",
+          "policy": "aer-redaction/3"
+        },
+        "client_declared": null
+      },
+      "sourced": null,
+      "findings": [],
+      "metadata": null,
+      "prevHash": "sha256:5140df97b172f42a9f839d63663a66cd8d5bc31e249be33a693231dc2ee5e9db",
+      "riskLevel": null,
+      "occurredAt": "2026-10-13T18:19:10.170Z",
+      "costMicroUsd": null,
+      "inputRedacted": null,
+      "outputRedacted": {
+        "score": 0.0000246913578
+      }
+    },
+    {
+      "seq": 2,
+      "hash": "sha256:2ecde567389fb36e1f640721aaa0ff341a52c22fc92e1b7c356f6a5d7f2f283a",
+      "type": "model_call",
+      "title": "answer",
+      "capture": {
+        "server_applied": {
+          "layer": "server",
+          "policy": "aer-redaction/3"
+        },
+        "client_declared": null
+      },
+      "sourced": {
+        "context": {
+          "used": [
+            {
+              "key": "ilce",
+              "value": "Milas",
+              "origin": "user_stated"
+            }
+          ]
+        },
+        "profile": "sourced_assistant",
+        "version": 1,
+        "citedSources": [
+          {
+            "id": "9903_karar.madde_9",
+            "version": "2024-v1"
+          }
+        ],
+        "not_recorded": [
+          "generation.provider",
+          "generation.model",
+          "generation.promptTemplateVersion",
+          "generation.appVersion",
+          "generation.providerRequestId",
+          "retrievedSources",
+          "claimSourceLinks",
+          "timing"
+        ]
+      },
+      "findings": [],
+      "metadata": null,
+      "prevHash": "sha256:05c598d5f405c3a4f7db1038a447a402c14268ad1760fdacf09ed6ea471399b8",
+      "riskLevel": null,
+      "occurredAt": "2026-10-13T18:19:10.207Z",
+      "costMicroUsd": null,
+      "inputRedacted": null,
+      "outputRedacted": {
+        "score": 0.0000246913578
+      }
+    }
+  ],
+  "export": {
+    "type": "json",
+    "generatedAt": "2026-10-13T18:19:10.252Z",
+    "content_hash": "sha256:cdbd103fa35b8aae213bdaa4ce862a68379648c2713f275e4c8b1bb00369c86d"
+  },
+  "receipt": {
+    "signature": {
+      "alg": "Ed25519",
+      "value": "MMRZHclkk122MLXighbUBFVW4k7TKO1SNxZtDylc/RehGfPH5vyCZx8+6GlEls7tLeMmbJ9MsAHZYIuEiJU4Cw==",
+      "key_id": "fixture-key-1"
+    },
+    "statement": {
+      "clock": "aer-server",
+      "run_id": "cmv7093gs0001qojelblpvmh8",
+      "issued_at": "2026-10-13T18:19:10.233Z",
+      "chain_head": "sha256:2ecde567389fb36e1f640721aaa0ff341a52c22fc92e1b7c356f6a5d7f2f283a",
+      "project_id": "org_fixture_synthetic_proj",
+      "event_count": 2,
+      "manifest_hash": "sha256:d31a72ef4baad2894f9abfc3123793cbc4b2389de4ac4b5b6b6e1cb3185c88d7",
+      "organization_id": "org_fixture_synthetic",
+      "receipt_version": "aer-receipt/1",
+      "manifest_version": "aer-manifest/1"
+    }
+  },
+  "coverage": {
+    "receipt": "commits to manifest_hash; trusted only if you kept it at seal time or verify its signature with a key you obtained out of band",
+    "event_chain": {
+      "covers": "per event: seq, type, title, occurredAt, inputRedacted, outputRedacted, riskLevel, costMicroUsd, metadata, findings; order via prevHash; seal = chain head",
+      "version": "aer-chain/1"
+    },
+    "content_hash": {
+      "covers": "the whole packet except export.content_hash",
+      "version": "aer-canonical/1+sha256"
+    },
+    "run_manifest": {
+      "covers": "run: id, tenant, agentName, status, riskLevel, startedAt, endedAt, costMicroUsd, server policy, client capture claim, environment, conversationRef, turnRef, parentRunId; per event: chain hash, server policy, client capture claim, sourced block (by digest); chain head and event count",
+      "frozen": "at seal (complete); absent for runs sealed before manifests existed"
+    },
+    "not_integrity_bound": [
+      "run.durationMs, run.eventCount, run.redactionCount",
+      "run.links.parentRun.status/agentName (resolved at export)",
+      "events[].sourced.not_recorded (derived at export)",
+      "redaction_findings (copy of events[].findings)",
+      "export.generatedAt"
+    ]
+  },
+  "versions": {
+    "chain": "aer-chain/1",
+    "manifest": "aer-manifest/1",
+    "content_hash": "aer-canonical/1+sha256",
+    "canonicalization": "aer-canonical/1"
+  },
+  "manifest_hash": "sha256:d31a72ef4baad2894f9abfc3123793cbc4b2389de4ac4b5b6b6e1cb3185c88d7",
+  "schema_version": "2.0",
+  "redaction_findings": []
+}
