@@ -53,6 +53,12 @@ Doğrulayıcı değişmedi; eski boşluklu zincirler aynen doğrulanır.
   hassas olmayan yanıt (kimlikler, sayılar). Ham gövde saklanmaz; hash, olay satırlarının zaten
   içerdiğinden fazlasını açığa çıkarmaz. Sonuç: yalnız gizli alan içinde farklılaşan iki gövde aynı
   sayılır (zaten aynı şekilde saklanırlar).
+- Bulgular hash'e **sıralı** girer: aynı içerik farklı JSON anahtar sırasıyla gelirse aynı istektir.
+  (9d9a527'de bulgular dolaşma sırasıyla giriyordu; anahtar sırası değişen retry `409` alıyordu —
+  bağımsız inceleme bulgusu, `tests/idempotency-order.integration.test.ts`.) Zincir hash'i
+  etkilenmez; olay bulguları saklandığı sırayla hash'lenmeye devam eder.
+  Sınır: iki farklı anahtar aynı belirtece maskelenirse (`#2` soneki) sonek ataması girdi sırasına
+  bağlıdır; bu nadir durumda sıra değişen retry yine `409` alabilir.
 - Saklama: 24 saat (`IDEMPOTENCY_TTL_MS`). Süresi dolan anahtar yeniden kullanılınca eski kayıt
   silinip yeni istek işlenir — o andan sonra gelen geç bir retry **yeni kayıt oluşturabilir**.
   Süresi dolanlar `pnpm prune:runs --apply` ile de silinir.

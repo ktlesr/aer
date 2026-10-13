@@ -27,9 +27,11 @@ import { genesisHash, hashEvent, type EventCore } from "@ktlsr/evidence-chain";
 /** An event's meaning, independent of where/when it landed (seq, occurredAt) — for replay checks. */
 const meaning = (c: EventCore) => fingerprint({ ...c, seq: 0, occurredAt: "", findings: sortFindings(c.findings) });
 const sortFindings = (fs: EventCore["findings"]) =>
-  [...fs].sort((a, b) =>
-    `${a.fieldPath}|${a.originalHash}|${a.findingType}`.localeCompare(`${b.fieldPath}|${b.originalHash}|${b.findingType}`),
-  );
+  [...fs].sort((a, b) => {
+    const ka = JSON.stringify([a.fieldPath, a.originalHash, a.findingType]);
+    const kb = JSON.stringify([b.fieldPath, b.originalHash, b.findingType]);
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
+  });
 
 // Sequence policy. `seq` is the event's position in the run's chain.
 // - Omitted (recommended): the server assigns max(seq) + 1 under the run lock.
@@ -76,7 +78,14 @@ export async function POST(
         originalHash: f.originalHash,
       })),
     };
-    const requestHash = fingerprint({ ...core, occurredAt: "", seq: data.seq ?? null, capture: values.captureDeclared ?? null });
+    // Request identity only — the chain hash still uses `core.findings` in stored order.
+    const requestHash = fingerprint({
+      ...core,
+      occurredAt: "",
+      seq: data.seq ?? null,
+      findings: sortFindings(core.findings),
+      capture: values.captureDeclared ?? null,
+    });
 
     const result = await prisma.$transaction(async (tx): Promise<StoredResult> => {
       const run = await lockRun(tx, runId, auth);

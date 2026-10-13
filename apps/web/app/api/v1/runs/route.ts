@@ -41,13 +41,14 @@ export async function POST(request: Request): Promise<Response> {
     });
 
     // The SDK identity header is telemetry, not meaning: it is left out of the fingerprint.
+    // Findings come out in traversal (= JSON key) order; sorted so key order doesn't change meaning.
     const requestHash = fingerprint({
       agentName: values.agentName,
       metadata: values.metadata ?? null,
       environment: values.environment ?? null,
       riskLevel: data.riskLevel ?? null,
       capture: values.captureDeclared ?? null,
-      findings: findings.map((f) => [f.fieldPath, f.findingType, f.originalHash]),
+      findings: findings.map((f) => JSON.stringify([f.fieldPath, f.findingType, f.originalHash])).sort(),
     });
 
     const result = await prisma.$transaction(async (tx): Promise<StoredResult> => {
