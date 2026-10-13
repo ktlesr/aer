@@ -9,15 +9,19 @@
 /**
  * - `full`: send as given (server-side redaction only). Default — matches collector-js <= 0.2.
  * - `redacted_content`: mask secret-named fields and supported patterns before sending.
- * - `allowlist`: keep only the `allow` paths of input/output/metadata, then mask as above.
- * - `metadata_only`: never send input/output; keep only allowlisted metadata scalars.
+ * - `allowlist`: keep only the `allow` paths, then mask as above. `title` / `agentName` are
+ *   replaced by a generic label (event type / "agent") unless `allow` lists them.
+ * - `metadata_only`: no input/output and never the original title. `agentName` only if allowed
+ *   and identifier-shaped. Metadata: allowlisted numbers/booleans, and identifier-shaped strings
+ *   only under the operational keys (model, provider, tool, status, version, environment).
  */
 export type CaptureMode = "full" | "redacted_content" | "allowlist" | "metadata_only";
 
 export interface CaptureOptions {
   mode: CaptureMode;
   /**
-   * Dotted paths to keep (allowlist / metadata_only). Roots: `input`, `output`, `metadata`.
+   * Dotted paths to keep (allowlist / metadata_only). Roots: `input`, `output`, `metadata`, and
+   * the leaves `title`, `agentName`.
    * `*` matches any key or array index: `"output.sources.*.id"`. A path keeps its whole subtree.
    */
   allow?: string[];
@@ -52,7 +56,12 @@ export interface CaptureDeclaration {
 }
 
 export const SECRET_TOKEN = "[REDACTED_SECRET]";
-const METADATA_ONLY_MAX_STRING = 200;
+// metadata_only is "what happened", never "what was said": strings must look like identifiers
+// (no spaces, ≤64 chars) AND sit under a fixed operational key. An app-chosen key like `prompt`
+// can't widen it — allowing it is the very back door this mode exists to close.
+// ponytail: fixed key set; need another operational field? use `allowlist` mode.
+const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:\/@+-]{0,63}$/;
+const OPERATIONAL_STRING_KEYS = new Set(["model", "provider", "tool", "toolname", "status", "version", "environment"]);
 
 // Same normalisation as the server: lowercase, non-alphanumerics stripped.
 const norm = (k: string): string => k.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -142,7 +151,8 @@ export function applyCapture<T extends CapturePayload>(
   payload: T,
   options: CaptureOptions,
   policy: string,
-  failedTitle: string,
+  /** Content-free label used in place of a title/agentName that may not be sent. */
+  generic: string,
 ): { payload: T; declaration: CaptureDeclaration } {
   const extra = new Set((options.secretFields ?? []).map(norm));
   const isSecret = (k: string): boolean => {
@@ -150,10 +160,18 @@ export function applyCapture<T extends CapturePayload>(
     return extra.has(n) || SECRET_NAMES.has(n) || SECRET_SUFFIXES.some((s) => n.endsWith(s));
   };
   const allow = (options.allow ?? []).map((p) => p.split("."));
+  const allowed = (leaf: "title" | "agentName") => (options.allow ?? []).includes(leaf);
+  const failedTitle = `${generic} (content withheld: client redaction failed)`;
   try {
     let out = structuredClone(payload);
     if (options.mode === "allowlist" || options.mode === "metadata_only") {
-      if (options.mode === "metadata_only") {
+      const strict = options.mode === "metadata_only";
+      // Titles are free text (error messages, user questions): not sent unless explicitly allowed.
+      if ("title" in out && (strict || !allowed("title"))) out.title = generic;
+      if ("agentName" in out && !(allowed("agentName") && (!strict || IDENTIFIER.test(String(out.agentName))))) {
+        out.agentName = generic;
+      }
+      if (strict) {
         delete out.input;
         delete out.output;
       } else {
@@ -162,14 +180,13 @@ export function applyCapture<T extends CapturePayload>(
       }
       if (out.metadata) {
         let md = pick(out.metadata, ["metadata"], allow) as Record<string, unknown> | undefined;
-        if (md && options.mode === "metadata_only") {
-          // Scalars only: free-form metadata must not become a back door for prompts/payloads.
+        if (md && strict) {
           md = Object.fromEntries(
             Object.entries(md).filter(
-              ([, v]) =>
+              ([k, v]) =>
                 typeof v === "number" ||
                 typeof v === "boolean" ||
-                (typeof v === "string" && v.length <= METADATA_ONLY_MAX_STRING),
+                (typeof v === "string" && OPERATIONAL_STRING_KEYS.has(norm(k)) && IDENTIFIER.test(v)),
             ),
           );
         }

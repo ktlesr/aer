@@ -211,13 +211,13 @@ class ApiClient {
 }
 
 /** Apply the recorder's capture policy (if any) and attach the declaration the server records. */
-function captured<T extends object>(body: T, capture: CaptureOptions | undefined, failedTitle: string): T {
+function captured<T extends object>(body: T, capture: CaptureOptions | undefined, generic: string): T {
   if (!capture) return body;
   const { payload, declaration } = applyCapture(
     body,
     capture,
     capturePolicy(SDK_HEADER, capture),
-    failedTitle,
+    generic,
   );
   return { ...payload, capture: declaration };
 }
@@ -232,7 +232,7 @@ export class AgentRun {
 
   async event(input: EventInput): Promise<EventResult> {
     const [event, key] = withoutKey(input);
-    const body = captured(event, this.capture, `${input.type} (content withheld: client redaction failed)`);
+    const body = captured(event, this.capture, input.type);
     const res = await this.client.request<{
       event: { id: string };
       redaction: { findingsCount: number };
@@ -264,7 +264,7 @@ export class AgentEvidenceRecorder {
 
   async startRun(input: StartRunInput): Promise<AgentRun> {
     const [run, key] = withoutKey(input);
-    const body = captured(run, this.capture, "agent (name withheld: client redaction failed)");
+    const body = captured(run, this.capture, "agent");
     const res = await this.client.request<{ run: { id: string } }>(
       "POST",
       "/api/v1/runs",

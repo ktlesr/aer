@@ -82,14 +82,14 @@ server still redacts again on arrival.
 | --- | --- |
 | `full` (default) | Everything you pass; only server-side redaction applies. |
 | `redacted_content` | Values under secret-named keys (`password`, `apiKey`, `authorization`, `*token`, `credentials`…) are replaced by `[REDACTED_SECRET]`; tokens/keys, Luhn-valid cards and emails are masked in strings and object keys. |
-| `allowlist` | Only the `allow` paths of `input` / `output` / `metadata` (e.g. `"output.sources.*.id"`), then masked as above. Unknown fields are dropped. |
-| `metadata_only` | No `input` / `output` at all. `metadata` keeps only allowlisted keys with number, boolean or ≤200-char string values. |
+| `allowlist` | Only the `allow` paths of `input` / `output` / `metadata` (e.g. `"output.sources.*.id"`), then masked as above. Unknown fields are dropped. `title` / `agentName` are replaced by the event type / `"agent"` unless you list `"title"` / `"agentName"`. |
+| `metadata_only` | No `input` / `output`, never the original `title` (the event type is sent). `agentName` only if listed and identifier-shaped (no spaces, ≤64 chars). `metadata`: allowlisted numbers and booleans; strings only under `model`, `provider`, `tool`, `toolName`, `status`, `version`, `environment` and only identifier-shaped. |
 
 Other fields: `secretFields` (extra key names to mask whole), `redact(payload)` (your own scrubber,
 applied last), `onRedactionError` — `drop_content` (default: the step is still recorded with its
 title replaced and all content withheld) or `throw` (nothing is sent). Raw content is never sent
-when masking fails. `title` and `agentName` are always sent (masked in non-`full` modes) — keep
-content out of them.
+when masking fails. In `full` and `redacted_content`, `title` and `agentName` are sent (masked in
+`redacted_content`) — keep content out of them, or use `allowlist` / `metadata_only`.
 
 Each run/event then carries `capture: { mode, policy, status }`. AER stores and exports it as a
 **client declaration**: the server cannot verify what the client did before sending.

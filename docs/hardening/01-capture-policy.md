@@ -71,8 +71,8 @@ zaten varsa bir sonraki boş numara seçilir. `__proto__` anahtarı veri olarak 
 | --- | --- |
 | `full` (varsayılan, 0.2 ile aynı) | Gövde olduğu gibi gider; yalnızca sunucu maskelemesi |
 | `redacted_content` | Gizli adlı alanlar + desteklenen desenler (JWT/Bearer, `sk-`/`aer_`/`*_live_` anahtarlar, Luhn kart, e-posta) göndermeden önce maskelenir; sunucu ikinci kez kontrol eder |
-| `allowlist` | Yalnızca `allow` yolları (`input.question`, `output.sources.*.id`); bilinmeyen alanlar atılır; kalan içerik `redacted_content` gibi maskelenir |
-| `metadata_only` | `input`/`output` hiç gönderilmez; `metadata` yalnızca allowlist'teki anahtarlar ve sayı/boolean/≤200 karakter metin değerleri |
+| `allowlist` | Yalnızca `allow` yolları (`input.question`, `output.sources.*.id`); bilinmeyen alanlar atılır; kalan içerik `redacted_content` gibi maskelenir. `title`/`agentName` listede (`"title"`, `"agentName"`) yoksa olay türü / `"agent"` gönderilir |
+| `metadata_only` | `input`/`output` ve özgün `title` hiç gönderilmez (olay türü gider). `agentName` yalnız listede ve tanımlayıcı biçimindeyse (boşluksuz, ≤64). `metadata`: allowlist'teki sayı/boolean; metin yalnız `model`, `provider`, `tool`, `toolName`, `status`, `version`, `environment` anahtarlarında ve tanımlayıcı biçimindeyse |
 
 - Temizleme `structuredClone` kopyası üzerinde çalışır; çağıranın nesnesi değişmez.
 - `redact(payload)` hook'u en son uygulanır ve kopya alır.
@@ -80,7 +80,13 @@ zaten varsa bir sonraki boş numara seçilir. `__proto__` anahtarı veri olarak 
   başlık `"<type> (content withheld: client redaction failed)"`, `input`/`output`/`metadata`
   gönderilmez, beyan `status: "failed_closed"`. `throw` seçilirse hiçbir istek gönderilmez ve
   hata mesajı içeriği yansıtmaz.
-- `title` ve `agentName` her modda gönderilir (`full` dışında maskelenir); içerik taşımamalıdır.
+- `full` ve `redacted_content` modlarında `title` ve `agentName` gönderilir (ikincisinde maskelenir);
+  serbest metin içeriyorsa `allowlist` / `metadata_only` kullanılmalı.
+- **İnceleme düzeltmesi (9d9a527 sonrası):** önceki sürümde `metadata_only`, allowlist'e eklenen
+  herhangi bir anahtardaki ≤200 karakter metni (ör. `metadata.prompt`) gönderiyor; `allowlist` ve
+  `metadata_only` serbest metin `title`/`agentName`'i her zaman gönderiyordu. Sabit operasyonel
+  anahtar kümesi + tanımlayıcı biçimi bu kapıyı kapatır. Sınır: tanımlayıcı biçimine uyan kısa
+  bir değer (`model: "gizli-proje-adi"`) yine gider; anahtar kümesi bilinçli olarak dar tutuldu.
 - SDK desen kümesi sunucununkinin alt kümesidir (telefon/kimlik yalnız sunucuda).
 
 ## 5. Sınırlar

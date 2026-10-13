@@ -127,3 +127,51 @@ test("no capture option: body is sent as given (collector-js 0.2 behaviour), no 
   await new AgentEvidenceRecorder({ baseUrl: "http://aer.test", apiKey: "k", fetchImpl }).startRun({ agentName: EMAIL });
   assert.deepEqual(JSON.parse(sent[0]), { agentName: EMAIL });
 });
+
+// Independent review (9d9a527) regressions: free text must not cross the restricted-mode boundary.
+const MARKER = "synthetic-private-business-context";
+
+test("metadata_only: an allowlisted non-operational key cannot carry a short prompt", async () => {
+  const sent: string[] = [];
+  await recorder({ mode: "metadata_only", allow: ["metadata.prompt", "metadata.model", "metadata.tokens"] }, sent)
+    .startRun({ agentName: "a", metadata: { prompt: MARKER, model: "gpt-4o-mini", tokens: 12 } });
+  assert.ok(!sent[0].includes(MARKER));
+  assert.deepEqual(JSON.parse(sent[0]).metadata, { model: "gpt-4o-mini", tokens: 12 });
+});
+
+test("metadata_only: operational keys only take identifier-shaped strings", async () => {
+  const sent: string[] = [];
+  await recorder({ mode: "metadata_only", allow: ["metadata.model", "metadata.status"] }, sent)
+    .startRun({ agentName: "a", metadata: { model: PROMPT, status: "ok" } });
+  assert.deepEqual(JSON.parse(sent[0]).metadata, { status: "ok" });
+});
+
+test("allowlist / metadata_only: unlisted title and agentName are replaced by generic labels", async () => {
+  for (const mode of ["allowlist", "metadata_only"] as const) {
+    const sent: string[] = [];
+    const run = await recorder({ mode, allow: ["metadata.model"] }, sent).startRun({ agentName: MARKER });
+    await run.event({ type: "error", title: MARKER, metadata: { model: "review" } });
+    for (const s of sent) assert.ok(!s.includes(MARKER), `${mode} leaked free text`);
+    assert.equal(JSON.parse(sent[0]).agentName, "agent");
+    assert.equal(JSON.parse(sent[1]).title, "error");
+  }
+});
+
+test("allowlist: title / agentName are sent (masked) only when listed", async () => {
+  const sent: string[] = [];
+  const run = await recorder({ mode: "allowlist", allow: ["title", "agentName"] }, sent).startRun({ agentName: "support-bot" });
+  await run.event({ type: "tool_call", title: `lookup ${EMAIL}` });
+  assert.equal(JSON.parse(sent[0]).agentName, "support-bot");
+  assert.equal(JSON.parse(sent[1]).title, "lookup [REDACTED_EMAIL]");
+});
+
+test("metadata_only: title is never sent; agentName only if listed and identifier-shaped", async () => {
+  const sent: string[] = [];
+  const rec = recorder({ mode: "metadata_only", allow: ["title", "agentName"] }, sent);
+  const run = await rec.startRun({ agentName: "support-bot" });
+  await run.event({ type: "tool_call", title: "search_customer" });
+  await rec.startRun({ agentName: "answer the customer about invoice" });
+  assert.equal(JSON.parse(sent[0]).agentName, "support-bot");
+  assert.equal(JSON.parse(sent[1]).title, "tool_call");
+  assert.equal(JSON.parse(sent[2]).agentName, "agent");
+});
