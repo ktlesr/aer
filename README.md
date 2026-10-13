@@ -13,6 +13,11 @@ context used, the retrieved candidates and the cited sources (with version and c
 records what the application reported; it does not show that a source is correct, current or
 legally applicable, and it is not a record of the model's internal reasoning.
 
+Sealing a run returns a receipt (optionally Ed25519-signed). Exported JSON packets can be checked
+offline with [`@ktlsr/aer-verify`](packages/aer-verify) — no network, no AER account. Without a
+receipt you kept or a key you trust, a passing check means "internally consistent", not "unaltered
+since sealing": there is no independent external timestamp or seal service yet.
+
 > Not an observability tool. See [`docs/PRODUCT.md`](docs/PRODUCT.md) for positioning.
 
 ## Repo Layout
