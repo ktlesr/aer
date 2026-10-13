@@ -9,6 +9,7 @@ import { POST as completeRun } from "@/app/api/v1/runs/[run_id]/complete/route";
 import { POST as createExport } from "@/app/api/v1/runs/[run_id]/exports/route";
 import { GET as downloadExport } from "@/app/api/v1/runs/[run_id]/exports/[export_id]/download/route";
 import { packetSeal, packetToChainLinks, type AuditPacket } from "@/lib/audit/packet";
+import { AgentEvidenceRecorder } from "../../../packages/collector-js/src/index";
 import { ctx, dropTenants, makeTenant, req, sha256 } from "./support";
 
 const ORG = "org_sourced_itest";
@@ -214,5 +215,26 @@ describe("replay semantics include the sourced block", () => {
     expect((await event(run.id, body("a"), headers)).status).toBe(201);
     expect((await event(run.id, body("a"), headers)).headers.get("idempotent-replayed")).toBe("true");
     expect((await event(run.id, body("b"), headers)).status).toBe(409);
+  });
+});
+
+describe("collector-js 0.4 end to end", () => {
+  it("SDK → real routes → DB: lineage and sourced are stored and acknowledged", async () => {
+    const fetchImpl = (async (url: string | URL | Request, init?: RequestInit) => {
+      const request = new Request(String(url), init);
+      const m = /^\/api\/v1\/runs\/([^/]+)\/events$/.exec(new URL(String(url)).pathname);
+      return m ? addEvent(request, ctx({ run_id: m[1] })) : createRun(request);
+    }) as typeof fetch;
+    const recorder = new AgentEvidenceRecorder({ baseUrl: "http://aer.test", apiKey: KEY, fetchImpl });
+    const run = await recorder.startRun({ agentName: "tesvik-asistani", conversationRef: "conv-sdk", turnRef: "t1" });
+    expect(run.lineageStored).toBe(true);
+    const res = await run.event({
+      type: "model_call",
+      title: "answer",
+      sourced: { profile: "sourced_assistant", version: 1, citedSources: [source("2024-v1", H1)], generation: { model: "m-1" } },
+    });
+    expect(res.sourcedStored).toBe(true);
+    const row = await prisma.agentEvent.findFirstOrThrow({ where: { runId: run.id } });
+    expect(row.sourced).toMatchObject({ citedSources: [{ contentHash: H1 }], generation: { model: "m-1" } });
   });
 });

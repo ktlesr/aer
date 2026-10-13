@@ -19,7 +19,7 @@ export type EventType =
   | "run_completed";
 
 /** Must match package.json "version" — src/index.test.ts fails if they drift. */
-export const SDK_VERSION = "0.3.0";
+export const SDK_VERSION = "0.4.0";
 
 /** Sent on every request so the server can tell collector-js runs from raw API calls. */
 const SDK_HEADER = `collector-js/${SDK_VERSION}`;
@@ -57,6 +57,62 @@ export interface StartRunInput {
   agentName: string;
   riskLevel?: RiskLevel;
   metadata?: Record<string, unknown>;
+  /** Your conversation/turn identifiers (1–200 chars of A-Z a-z 0-9 . _ : -), not text. */
+  conversationRef?: string;
+  turnRef?: string;
+  /** The AER run id of the previous step. Shown as `missing_context` if it no longer exists. */
+  parentRunId?: string;
+}
+
+/** One source document/chunk. `contentHash` needs `hashScope`; `score` needs `scoreMethod`. */
+export interface SourceRef {
+  id: string;
+  version?: string;
+  title?: string;
+  /** `sha256:<64 lowercase hex>` over the bytes named by `hashScope` (e.g. "chunk_text_utf8"). */
+  contentHash?: string;
+  hashScope?: string;
+  /** Opaque pointer into your archive. Never a signed URL — query strings are rejected. */
+  archiveRef?: string;
+  /** A retriever's own number — not a probability, not comparable across methods. */
+  score?: number;
+  scoreMethod?: string;
+}
+
+/**
+ * Sourced-assistant evidence (profile v1). Send what you actually have; anything left out is
+ * shown as "not recorded" — never guessed. Do not put model reasoning/chain-of-thought here.
+ */
+export interface SourcedEvidence {
+  profile: "sourced_assistant";
+  version: 1;
+  context?: {
+    /** Only context the answer actually used, each with where it came from. */
+    used?: Array<{
+      key: string;
+      value: string | number | boolean;
+      origin: "user_stated" | "previous_turn" | "retrieved" | "inferred" | "system";
+      fromTurnRef?: string;
+    }>;
+    /** Context you knew you needed but did not have. */
+    missing?: string[];
+  };
+  /** Candidates retrieval returned. */
+  retrievedSources?: SourceRef[];
+  /** Sources the answer presents as support. */
+  citedSources?: SourceRef[];
+  /** Claim → ids from `citedSources`; `assessed` requires `assessment`. */
+  claimSourceLinks?: Array<{ claim: string; sourceIds: string[]; basis: "model_declared" | "assessed" }>;
+  assessment?: { method: string; version: string; result: string };
+  generation?: {
+    provider?: string;
+    model?: string;
+    promptTemplateVersion?: string;
+    appVersion?: string;
+    providerRequestId?: string;
+  };
+  /** Your clock; AER records its own receive time separately. */
+  timing?: { clientStartedAt?: string; clientEndedAt?: string };
 }
 
 export interface EventInput {
@@ -69,6 +125,7 @@ export interface EventInput {
   riskLevel?: RiskLevel;
   costMicroUsd?: number;
   metadata?: Record<string, unknown>;
+  sourced?: SourcedEvidence;
 }
 
 export interface CompleteInput {
@@ -80,6 +137,11 @@ export interface CompleteInput {
 export interface EventResult {
   eventId: string;
   findingsCount: number;
+  /**
+   * False when you sent `sourced` but the server did not store it (an AER server older than
+   * this profile ignores unknown fields). Undefined when nothing was sent.
+   */
+  sourcedStored?: boolean;
 }
 
 export class RecorderError extends Error {
@@ -228,16 +290,20 @@ export class AgentRun {
     private readonly client: ApiClient,
     public readonly id: string,
     private readonly capture?: CaptureOptions,
+    /** False when lineage refs were sent but the server did not store them (older server). */
+    public readonly lineageStored?: boolean,
   ) {}
 
   async event(input: EventInput): Promise<EventResult> {
     const [event, key] = withoutKey(input);
     const body = captured(event, this.capture, input.type);
     const res = await this.client.request<{
-      event: { id: string };
+      event: { id: string; sourcedStored?: boolean };
       redaction: { findingsCount: number };
     }>("POST", `/api/v1/runs/${this.id}/events`, body, key);
-    return { eventId: res.event.id, findingsCount: res.redaction.findingsCount };
+    const result: EventResult = { eventId: res.event.id, findingsCount: res.redaction.findingsCount };
+    if ((body as { sourced?: unknown }).sourced !== undefined) result.sourcedStored = res.event.sourcedStored === true;
+    return result;
   }
 
   async complete(input: CompleteInput = {}): Promise<void> {
@@ -265,12 +331,15 @@ export class AgentEvidenceRecorder {
   async startRun(input: StartRunInput): Promise<AgentRun> {
     const [run, key] = withoutKey(input);
     const body = captured(run, this.capture, "agent");
-    const res = await this.client.request<{ run: { id: string } }>(
+    const res = await this.client.request<{ run: { id: string } & Record<string, unknown> }>(
       "POST",
       "/api/v1/runs",
       this.environment === undefined ? body : { ...body, environment: this.environment },
       key,
     );
-    return new AgentRun(this.client, res.run.id, this.capture);
+    const sent = body as Record<string, unknown>;
+    const refs = (["conversationRef", "turnRef", "parentRunId"] as const).filter((k) => sent[k] !== undefined);
+    const lineageStored = refs.length ? refs.every((k) => res.run[k] === sent[k]) : undefined;
+    return new AgentRun(this.client, res.run.id, this.capture, lineageStored);
   }
 }

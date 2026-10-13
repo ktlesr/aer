@@ -103,16 +103,65 @@ const recorder = new AgentEvidenceRecorder({
 
 ### `recorder.startRun(input) → Promise<AgentRun>`
 
-`input`: `{ agentName: string; riskLevel?: "low" | "medium" | "high" | "critical"; metadata?: Record<string, unknown> }`
+`input`: `{ agentName: string; riskLevel?: "low" | "medium" | "high" | "critical"; metadata?: Record<string, unknown>; conversationRef?: string; turnRef?: string; parentRunId?: string; idempotencyKey?: string }`
 
-### `run.event(input) → Promise<{ eventId: string; findingsCount: number }>`
+`conversationRef` / `turnRef` are your identifiers (1–200 chars `A-Z a-z 0-9 . _ : -` — not text).
+`parentRunId` is the AER run id of the previous step; the dashboard and packet link to it, or show
+`missing_context` if that run doesn't exist in your project (never recorded, pruned, or not yours).
+`run.lineageStored` is `false` if you sent these and the server didn't store them (older server).
 
-`input`: `{ type: EventType; title: string; seq?: number; input?: unknown; output?: unknown; riskLevel?: RiskLevel; costMicroUsd?: number; metadata?: Record<string, unknown>; idempotencyKey?: string }`
+### `run.event(input) → Promise<{ eventId: string; findingsCount: number; sourcedStored?: boolean }>`
+
+`input`: `{ type: EventType; title: string; seq?: number; input?: unknown; output?: unknown; riskLevel?: RiskLevel; costMicroUsd?: number; metadata?: Record<string, unknown>; sourced?: SourcedEvidence; idempotencyKey?: string }`
 
 `seq` is the event's position in the run's evidence chain. Leave it out: the server assigns the next
 one atomically. If you do send it, it must be higher than every earlier `seq` of the run (gaps are
 allowed); resending an existing `seq` with identical content returns the original event, with
 different content it fails with `409`. Put your own step numbers in `metadata`, not in `seq`.
+
+### Sourced answers (`sourced`)
+
+For assistants that answer from documents. Send what you actually have — every omitted part is
+shown as "not recorded", never guessed.
+
+```ts
+await run.event({
+  type: "model_call",
+  title: "answer",
+  sourced: {
+    profile: "sourced_assistant",
+    version: 1,
+    context: {
+      used: [
+        { key: "ilce", value: "Milas", origin: "user_stated" },
+        { key: "yatirim_konusu", value: "soğuk hava deposu", origin: "previous_turn", fromTurnRef: "t1" },
+        { key: "il", value: "Muğla", origin: "inferred" },
+      ],
+      missing: ["yatirim_tutari"],
+    },
+    retrievedSources: [{ id: "9903.md9", score: 12.4, scoreMethod: "bm25" }],
+    citedSources: [{ id: "9903.md9", version: "2024-v1", contentHash: "sha256:…", hashScope: "chunk_text_utf8", archiveRef: "kb:9903/md9" }],
+    claimSourceLinks: [{ claim: "…", sourceIds: ["9903.md9"], basis: "model_declared" }],
+    generation: { provider: "…", model: "…", promptTemplateVersion: "answer@7", appVersion: "1.12.0" },
+    timing: { clientStartedAt: "…", clientEndedAt: "…" },
+  },
+});
+```
+
+- `origin: "inferred"` is shown as *inferred — not confirmed*; use it for anything the user didn't say.
+- `retrievedSources` are candidates, `citedSources` are what the answer presents as support — the
+  two are never merged. A `score` is your retriever's number, not a probability.
+- `claimSourceLinks[].sourceIds` must be in `citedSources`. `basis: "assessed"` requires an
+  `assessment: { method, version, result }` describing the separate check.
+- `contentHash` must be `sha256:<hex>` with a `hashScope` naming the bytes hashed. A hash proves
+  which version was cited, not what it said — keep `archiveRef` to retrieve it. `archiveRef` is
+  rejected if it looks like a URL with a query string (no signed URLs in evidence).
+- Do not send model reasoning / chain of thought; record the sources, tool results and the
+  explanation the user was shown.
+- Capture modes: `allowlist` keeps only the `sourced.*` paths you list; `metadata_only` sends no
+  `sourced` block; `conversationRef` / `turnRef` are sent in restricted modes only if listed.
+- The block is stored redacted and exported in the packet, but it is **not yet covered by the event
+  chain hash** (planned).
 
 ### Idempotency and retries
 
@@ -135,7 +184,7 @@ status is a no-op; a different status or `endedAt` is `409`.
 Besides your API key and the run/event payloads you pass in, every request carries two headers:
 
 ```
-x-aer-sdk: collector-js/0.3.0
+x-aer-sdk: collector-js/0.4.0
 idempotency-key: <random UUID, or your idempotencyKey>
 ```
 

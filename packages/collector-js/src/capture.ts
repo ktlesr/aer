@@ -20,8 +20,8 @@ export type CaptureMode = "full" | "redacted_content" | "allowlist" | "metadata_
 export interface CaptureOptions {
   mode: CaptureMode;
   /**
-   * Dotted paths to keep (allowlist / metadata_only). Roots: `input`, `output`, `metadata`, and
-   * the leaves `title`, `agentName`.
+   * Dotted paths to keep (allowlist / metadata_only). Roots: `input`, `output`, `metadata`,
+   * `sourced` (allowlist only), and the leaves `title`, `agentName`, `conversationRef`, `turnRef`.
    * `*` matches any key or array index: `"output.sources.*.id"`. A path keeps its whole subtree.
    */
   allow?: string[];
@@ -47,6 +47,9 @@ export interface CapturePayload {
   input?: unknown;
   output?: unknown;
   metadata?: Record<string, unknown>;
+  sourced?: unknown;
+  conversationRef?: string;
+  turnRef?: string;
 }
 
 export interface CaptureDeclaration {
@@ -160,7 +163,8 @@ export function applyCapture<T extends CapturePayload>(
     return extra.has(n) || SECRET_NAMES.has(n) || SECRET_SUFFIXES.some((s) => n.endsWith(s));
   };
   const allow = (options.allow ?? []).map((p) => p.split("."));
-  const allowed = (leaf: "title" | "agentName") => (options.allow ?? []).includes(leaf);
+  const allowed = (leaf: "title" | "agentName" | "conversationRef" | "turnRef") =>
+    (options.allow ?? []).includes(leaf);
   const failedTitle = `${generic} (content withheld: client redaction failed)`;
   try {
     let out = structuredClone(payload);
@@ -171,12 +175,23 @@ export function applyCapture<T extends CapturePayload>(
       if ("agentName" in out && !(allowed("agentName") && (!strict || IDENTIFIER.test(String(out.agentName))))) {
         out.agentName = generic;
       }
+      // Your own identifiers can still identify a person/conversation: sent only if listed.
+      // (parentRunId is AER's own run id and always kept.)
+      if (!allowed("conversationRef")) delete out.conversationRef;
+      if (!allowed("turnRef")) delete out.turnRef;
       if (strict) {
         delete out.input;
         delete out.output;
+        delete out.sourced;
       } else {
         if ("input" in out) out.input = pick(out.input, ["input"], allow);
         if ("output" in out) out.output = pick(out.output, ["output"], allow);
+        if ("sourced" in out) {
+          // The profile tag always travels with whatever sourced paths are allowed.
+          const s = pick(out.sourced, ["sourced"], allow) as Record<string, unknown> | undefined;
+          if (s) out.sourced = { ...s, profile: "sourced_assistant", version: 1 };
+          else delete out.sourced;
+        }
       }
       if (out.metadata) {
         let md = pick(out.metadata, ["metadata"], allow) as Record<string, unknown> | undefined;
@@ -200,7 +215,15 @@ export function applyCapture<T extends CapturePayload>(
     // The hook's own error is not rethrown: its message could quote the content it choked on.
     if (options.onRedactionError === "throw") throw new Error("Client redaction failed; nothing was sent");
     // Fail closed: keep the fact that a step happened, drop everything that could carry content.
-    const withheld = { ...payload, input: undefined, output: undefined, metadata: undefined } as T;
+    const withheld = {
+      ...payload,
+      input: undefined,
+      output: undefined,
+      metadata: undefined,
+      sourced: undefined,
+      conversationRef: undefined,
+      turnRef: undefined,
+    } as T;
     if ("title" in payload) withheld.title = failedTitle;
     if ("agentName" in payload) withheld.agentName = failedTitle;
     return { payload: withheld, declaration: { mode: options.mode, policy, status: "failed_closed" } };
