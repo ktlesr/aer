@@ -1,0 +1,16 @@
+{
+  "comment": "Compiles the CLI together with the shared verifier sources from ../evidence-chain into one dependency-free CommonJS tree (dist/). The verifier logic is never copied.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "moduleResolution": "node10",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "rootDir": "..",
+    "outDir": "dist"
+  },
+  "files": ["src/cli.ts"]
+}

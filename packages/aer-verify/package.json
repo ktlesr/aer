@@ -1,0 +1,38 @@
+{
+  "name": "@ktlsr/aer-verify",
+  "version": "0.1.0",
+  "description": "Offline verifier for Agent Evidence Recorder audit packets: chain, manifest, content hash, seal, receipt and signature — no network, no AER account.",
+  "license": "MIT",
+  "author": "ktlesr",
+  "type": "commonjs",
+  "bin": {
+    "aer-verify": "dist/aer-verify/src/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsc -p tsconfig.json && node --test test/cli.test.js test/review-stage4.test.js",
+    "prepublishOnly": "tsc -p tsconfig.json && node --test test/cli.test.js test/review-stage4.test.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ktlesr/aer.git",
+    "directory": "packages/aer-verify"
+  },
+  "homepage": "https://aer.ktlsr.com",
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5"
+  }
+}
