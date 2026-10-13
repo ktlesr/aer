@@ -20,15 +20,27 @@ export const captureDeclaredSchema = z
 
 /** An app-side identifier (conversation, turn, run). Identifier-shaped so it can't carry text. */
 const refSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/, "1–200 chars: letters, digits, . _ : -");
-const isoTimeSchema = z.string().refine((v) => !Number.isNaN(Date.parse(v)), "must be an ISO datetime");
+const isoTimeSchema = z.string().max(64).refine((v) => !Number.isNaN(Date.parse(v)), "must be an ISO datetime");
 const short = (max: number) => z.string().min(1).max(max);
 
 // Access material in a URI: a query parameter (?X-Amz-Signature=…, &sig=…) or userinfo
 // (https://user:pass@host). A signed link grants access to the document, so no source field may
 // carry one — whichever field the app puts it in. Plain paths/URLs without these are fine.
-const ACCESS_URI = /[?&][^\s=&]+=|[a-z][a-z0-9+.-]*:\/\/[^\s/]*@/i;
+// Also a fragment or matrix parameter (#access_token=…, ;jsessionid=…) and the percent-encoded
+// delimiters (%3F, %23, %26, %3B, %3D, %40) that smuggle the same thing past a literal check.
+// Linear by construction: each character class excludes the delimiters that start a match.
+const ACCESS_PARAM = /[?&#;][^\s=?&#;]*=/;
+const ACCESS_ENCODED = /%(?:3f|23|26|3b|3d|40)/i;
+const ACCESS_USERINFO = /:\/\/[^\s/?#@]*@/;
+const hasAccessMaterial = (v: string): boolean =>
+  ACCESS_PARAM.test(v) || ACCESS_ENCODED.test(v) || ACCESS_USERINFO.test(v);
 const sourceText = (max: number) =>
-  short(max).refine((v) => !ACCESS_URI.test(v), "must not contain a URI query string or credentials");
+  short(max).refine(
+    // Zod runs refinements even after max() fails: check length first so an oversized value
+    // never reaches a regex.
+    (v) => v.length > max || !hasAccessMaterial(v),
+    "must not contain a URI query string, fragment parameter or credentials",
+  );
 
 /**
  * One source document/chunk. The hash names its algorithm (prefix) and its scope (which bytes were

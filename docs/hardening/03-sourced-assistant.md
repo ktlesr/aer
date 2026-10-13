@@ -33,7 +33,11 @@ Bütün yeni alanlar opsiyoneldir. `sourced` olayda sürümlü bir bloktur
   bilgisi (`@`), boşluk reddedilir. Kaynağın **diğer bütün metin alanları** (`id`, `version`,
   `title`, `hashScope`, `scoreMethod`) ve `claimSourceLinks[].sourceIds` de sorgu parametresi
   (`?x=` / `&x=`, şemasız olsa bile) veya kimlik bilgili URI (`scheme://user:pass@`) taşıyamaz:
-  `422`, hiçbir şey yazılmaz, değer yankılanmaz. Sorgusuz düz URL ve dosya adları kabul edilir.
+  `422`, hiçbir şey yazılmaz, değer yankılanmaz. Fragment/matrix parametresi (`#access_token=`,
+  `;jsessionid=`) ve yüzde kodlu ayraçlar (`%3F`, `%23`, `%26`, `%3B`, `%3D`, `%40`) da reddedilir.
+  Sorgusuz düz URL, `#madde-9` gibi parametresiz fragment ve dosya adları kabul edilir.
+  Kontrol doğrusal zamanlıdır ve uzunluk sınırından sonra çalışır (Zod, `max()` başarısız olsa da
+  `refine` çalıştırır; ilk sürüm 1 MB'lık bir id ile dakikalarca CPU harcayabiliyordu).
   Sınır: `context.used[].value` ve `claim` serbest metindir; bu kural onlara uygulanmaz.
 - **Çıkarım doğrulanmış gibi gösterilmez.** `origin: "inferred"` "inferred — not confirmed" olarak
   gösterilir.
