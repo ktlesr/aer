@@ -18,6 +18,114 @@ export const captureDeclaredSchema = z
   })
   .strict();
 
+/** An app-side identifier (conversation, turn, run). Identifier-shaped so it can't carry text. */
+const refSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/, "1–200 chars: letters, digits, . _ : -");
+const isoTimeSchema = z.string().refine((v) => !Number.isNaN(Date.parse(v)), "must be an ISO datetime");
+const short = (max: number) => z.string().min(1).max(max);
+
+/**
+ * One source document/chunk. The hash names its algorithm (prefix) and its scope (which bytes were
+ * hashed) — a bare hash says nothing a reader can re-check. archiveRef is an opaque pointer, never
+ * a URL with a query string, credentials or spaces (signed URLs must not land in a packet).
+ * A score needs its method: scores from different retrievers are not comparable.
+ */
+const sourceSchema = z
+  .object({
+    id: short(200),
+    version: short(100).optional(),
+    title: short(300).optional(),
+    contentHash: z.string().regex(/^sha256:[0-9a-f]{64}$/, "sha256:<64 lowercase hex>").optional(),
+    hashScope: short(100).optional(),
+    archiveRef: z
+      .string()
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._:/#-]{0,299}$/, "opaque ref: no query string, credentials or spaces")
+      .optional(),
+    score: z.number().finite().optional(),
+    scoreMethod: short(100).optional(),
+  })
+  .strict()
+  .refine((s) => s.contentHash === undefined || s.hashScope !== undefined, "contentHash requires hashScope")
+  .refine((s) => s.score === undefined || s.scoreMethod !== undefined, "score requires scoreMethod");
+
+/**
+ * Sourced-assistant evidence on one event (Stage 3). Everything is optional except the profile tag;
+ * what is not sent is shown as "not recorded", never inferred.
+ * - context.used: only context the app actually used, each with where it came from — an
+ *   inferred value is labelled `inferred`, not passed off as user-stated.
+ * - retrievedSources (candidates) and citedSources (shown as support) are separate lists; a
+ *   retrieved source is never implied to support the answer.
+ * - claimSourceLinks: claim → cited source ids, with who asserted the link (`model_declared`
+ *   by the model/app, `assessed` by a separate check described in `assessment`).
+ * - timing: the client's own clock; AER's receive time is the event's occurredAt.
+ */
+export const sourcedSchema = z
+  .object({
+    profile: z.literal("sourced_assistant"),
+    version: z.literal(1),
+    context: z
+      .object({
+        used: z
+          .array(
+            z
+              .object({
+                key: short(100),
+                value: z.union([z.string().max(500), z.number().finite(), z.boolean()]),
+                origin: z.enum(["user_stated", "previous_turn", "retrieved", "inferred", "system"]),
+                fromTurnRef: refSchema.optional(),
+              })
+              .strict(),
+          )
+          .max(100)
+          .optional(),
+        missing: z.array(short(100)).max(50).optional(),
+      })
+      .strict()
+      .optional(),
+    retrievedSources: z.array(sourceSchema).max(100).optional(),
+    citedSources: z.array(sourceSchema).max(50).optional(),
+    claimSourceLinks: z
+      .array(
+        z
+          .object({
+            claim: short(1000),
+            sourceIds: z.array(short(200)).min(1).max(20),
+            basis: z.enum(["model_declared", "assessed"]),
+          })
+          .strict(),
+      )
+      .max(50)
+      .optional(),
+    assessment: z.object({ method: short(100), version: short(50), result: short(200) }).strict().optional(),
+    generation: z
+      .object({
+        provider: short(100).optional(),
+        model: short(100).optional(),
+        promptTemplateVersion: short(100).optional(),
+        appVersion: short(100).optional(),
+        providerRequestId: short(200).optional(),
+      })
+      .strict()
+      .optional(),
+    timing: z.object({ clientStartedAt: isoTimeSchema.optional(), clientEndedAt: isoTimeSchema.optional() }).strict().optional(),
+  })
+  .strict()
+  .superRefine((s, ctx) => {
+    const cited = new Set((s.citedSources ?? []).map((c) => c.id));
+    s.claimSourceLinks?.forEach((l, i) => {
+      if (l.sourceIds.some((id) => !cited.has(id))) {
+        ctx.addIssue({ code: "custom", path: ["claimSourceLinks", i, "sourceIds"], message: "every id must be in citedSources" });
+      }
+    });
+    if (s.claimSourceLinks?.some((l) => l.basis === "assessed") && !s.assessment) {
+      ctx.addIssue({ code: "custom", path: ["assessment"], message: "required when a link's basis is assessed" });
+    }
+    const { clientStartedAt: a, clientEndedAt: b } = s.timing ?? {};
+    if (a && b && Date.parse(a) > Date.parse(b)) {
+      ctx.addIssue({ code: "custom", path: ["timing"], message: "clientStartedAt is after clientEndedAt" });
+    }
+  });
+export type SourcedInput = z.infer<typeof sourcedSchema>;
+
 export const createRunSchema = z.object({
   agentName: z.string().min(1).max(200),
   riskLevel: riskLevelSchema.optional(),
@@ -30,6 +138,9 @@ export const createRunSchema = z.object({
     .transform((s) => s.toLowerCase())
     .optional(),
   capture: captureDeclaredSchema.optional(),
+  conversationRef: refSchema.optional(),
+  turnRef: refSchema.optional(),
+  parentRunId: refSchema.optional(),
 });
 export type CreateRunInput = z.infer<typeof createRunSchema>;
 
@@ -56,6 +167,7 @@ export const createEventSchema = z.object({
   costMicroUsd: z.number().int().nonnegative().optional(),
   metadata: metadataSchema.optional(),
   capture: captureDeclaredSchema.optional(),
+  sourced: sourcedSchema.optional(),
 });
 export type CreateEventInput = z.infer<typeof createEventSchema>;
 

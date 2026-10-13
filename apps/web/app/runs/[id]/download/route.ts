@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { buildAuditPacket } from "@/lib/audit/packet";
+import { resolveLinks } from "@/lib/audit/sourced";
 import { renderAuditPdf } from "@/lib/audit/renderPdf";
 
 // Dashboard-internal download. Gated by requireDashboardAccess() — the same authorization
@@ -22,12 +23,13 @@ export async function GET(
   }
 
   const scope = { runId: run.id, organizationId, projectId };
-  const [events, findings] = await Promise.all([
+  const [events, findings, links] = await Promise.all([
     prisma.agentEvent.findMany({ where: scope, orderBy: { seq: "asc" } }),
     prisma.redactionFinding.findMany({ where: scope }),
+    resolveLinks({ organizationId, projectId }, run),
   ]);
 
-  const packet = buildAuditPacket(run, events, findings, new Date());
+  const packet = buildAuditPacket(run, events, findings, new Date(), links);
 
   if (new URL(request.url).searchParams.get("format") === "pdf") {
     const pdf = await renderAuditPdf(packet);

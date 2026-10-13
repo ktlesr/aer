@@ -60,7 +60,7 @@ describe("capture policy — server label + client declaration, end to end", () 
     const text = await dl.text();
     expect(text).not.toContain(PASSWORD);
     const packet = JSON.parse(text) as AuditPacket;
-    expect(packet.schema_version).toBe("1.2");
+    expect(packet.schema_version).toBe("1.3");
     expect(packet.run.capture).toEqual({
       server_applied: { layer: "server", policy: REDACTION_POLICY },
       client_declared: { layer: "client", ...declared },

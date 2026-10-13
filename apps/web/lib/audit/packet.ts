@@ -5,6 +5,7 @@ import type {
   AgentRun,
   RedactionFinding,
 } from "@/app/generated/prisma/client";
+import { sourcedView, type RunLinks, type SourcedView } from "./sourced";
 
 interface PacketFinding {
   findingType: string;
@@ -38,6 +39,8 @@ export interface AuditPacket {
     eventCount: number;
     redactionCount: number;
     capture: PacketCapture;
+    // Lineage, resolved inside the run's tenant at export time. Not covered by the chain hash.
+    links: RunLinks;
   };
   events: Array<{
     seq: number;
@@ -55,6 +58,9 @@ export interface AuditPacket {
     // Findings that went into this event's hash (raw values never present — only the hash).
     findings: PacketFinding[];
     capture: PacketCapture;
+    // Sourced-assistant evidence + `not_recorded` gaps; null when the event carries none.
+    // Covered by content_hash, NOT by the event chain hash (Stage 4 extends coverage).
+    sourced: SourcedView | null;
   }>;
   redaction_findings: Array<PacketFinding>;
   // Chain anchor — lets a third party re-verify the packet offline (see docs/EVIDENCE_INTEGRITY.md).
@@ -133,6 +139,7 @@ export function buildAuditPacket(
   events: AgentEvent[],
   findings: RedactionFinding[],
   generatedAt: Date,
+  links: RunLinks = { conversationRef: null, turnRef: null, parentRun: null },
 ): AuditPacket {
   const toPacketFinding = (f: RedactionFinding): PacketFinding => ({
     findingType: f.findingType,
@@ -143,8 +150,9 @@ export function buildAuditPacket(
   });
 
   const base: Omit<AuditPacket, "export"> & { export: Omit<AuditPacket["export"], "content_hash"> } = {
-    // 1.2 = 1.1 + run/event `capture`. Chain hashing is unchanged, so 1.1 packets verify as before.
-    schema_version: "1.2",
+    // 1.2 = 1.1 + run/event `capture`; 1.3 = 1.2 + run `links` + event `sourced`.
+    // Chain hashing is unchanged, so 1.1/1.2 packets verify as before.
+    schema_version: "1.3",
     run: {
       id: run.id,
       agentName: run.agentName,
@@ -157,6 +165,7 @@ export function buildAuditPacket(
       eventCount: run.eventCount,
       redactionCount: run.redactionCount,
       capture: captureOf(run),
+      links,
     },
     events: events.map((e) => ({
       seq: e.seq,
@@ -172,6 +181,7 @@ export function buildAuditPacket(
       prevHash: e.prevHash ? withPrefix(e.prevHash) : null,
       findings: findings.filter((f) => f.eventId === e.id).map(toPacketFinding),
       capture: captureOf(e),
+      sourced: sourcedView(e.sourced),
     })),
     redaction_findings: findings.map(toPacketFinding),
     chain: { algorithm: "sha256", genesis: withPrefix(genesisHash(run.id)) },

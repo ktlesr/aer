@@ -120,6 +120,10 @@ export function serializeRun(run: AgentRun) {
     costMicroUsd: run.costMicroUsd,
     eventCount: run.eventCount,
     redactionCount: run.redactionCount,
+    // Echoed so a client can tell a server that stored lineage from one that dropped it.
+    conversationRef: run.conversationRef,
+    turnRef: run.turnRef,
+    parentRunId: run.parentRunId,
   };
 }
 
@@ -130,6 +134,8 @@ export function serializeEvent(event: AgentEvent) {
     type: event.type,
     title: event.title,
     occurredAt: event.occurredAt.toISOString(),
+    // An acknowledgement, not the content: responses are kept in the idempotency ledger.
+    sourcedStored: event.sourced !== null,
   };
 }
 

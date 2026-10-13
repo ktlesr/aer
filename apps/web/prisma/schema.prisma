@@ -163,6 +163,12 @@ model AgentRun {
   // before sending ({mode, policy, status}); AER cannot verify it. Neither is in the chain hash.
   redactionPolicy String?
   captureDeclared Json?
+  // Sourced-assistant lineage (all optional, client-supplied identifiers). parentRunId is NOT a
+  // foreign key: the parent may be pruned or never recorded — it is resolved at read time inside
+  // the tenant and shown as "missing_context" when absent. Outside the chain hash (Stage 4).
+  conversationRef String?
+  turnRef         String?
+  parentRunId     String?
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project      Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
@@ -198,6 +204,10 @@ model AgentEvent {
   // before sending ({mode, policy, status}); AER cannot verify it. Neither is in the chain hash.
   redactionPolicy String?
   captureDeclared Json?
+  // Sourced-assistant evidence (profile "sourced_assistant", see lib/audit/sourced.ts): context
+  // used, retrieved vs cited sources, claim links, generation info. Redacted like the other
+  // fields. Outside the chain hash until Stage 4 extends coverage.
+  sourced         Json?
 
   run      AgentRun           @relation(fields: [runId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Cascade)
   findings RedactionFinding[]

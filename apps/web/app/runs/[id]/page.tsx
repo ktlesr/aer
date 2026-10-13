@@ -8,11 +8,13 @@ import { Timeline, type TimelineEvent } from "@/components/timeline";
 import { RawJsonViewer } from "@/components/raw-json-viewer";
 import { HashSeal, type ChainStatus } from "@/components/hash-seal";
 import { RunPager } from "@/components/run-pager";
+import { RunLineage, SourcedEvidence } from "@/components/sourced-evidence";
 import { verifyChain } from "@ktlsr/evidence-chain";
 import { getRunDetail, getRunNeighbors } from "@/lib/dashboard/queries";
 import { requireDashboardAccess } from "@/lib/dashboard/access";
 import { evidenceDigest } from "@/lib/audit/packet";
 import { toChainLink } from "@/lib/audit/chainAdapter";
+import { resolveLinks, sourcedView } from "@/lib/audit/sourced";
 import { formatCost, formatDateTime, formatDuration } from "@/lib/format";
 import { PRIVATE_PAGE } from "@/lib/site";
 
@@ -41,7 +43,11 @@ export default async function RunDetailPage({
   const run = await getRunDetail(scope, id);
   if (!run) notFound();
 
-  const { newer, older } = await getRunNeighbors(scope, run);
+  const [{ newer, older }, links] = await Promise.all([getRunNeighbors(scope, run), resolveLinks(scope, run)]);
+  const sourcedEvents = run.events.flatMap((e) => {
+    const view = sourcedView(e.sourced);
+    return view ? [{ seq: e.seq, sourced: view }] : [];
+  });
 
   const digest = evidenceDigest(run, run.events, run.findings);
 
@@ -143,9 +149,30 @@ export default async function RunDetailPage({
             <span className="eyebrow">{run.events.length} events</span>
           </div>
           <Timeline events={events} />
+
+          {sourcedEvents.length > 0 ? (
+            <div className="mt-11">
+              <div className="mb-4 flex items-baseline justify-between">
+                <h2 className="font-display text-xl font-semibold tracking-tight">Sources &amp; context</h2>
+                <span className="eyebrow">not covered by the chain hash</span>
+              </div>
+              <div className="space-y-4">
+                {sourcedEvents.map((e) => (
+                  <SourcedEvidence key={e.seq} seq={e.seq} sourced={e.sourced} />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <aside className="space-y-9">
+          {links.conversationRef || links.turnRef || links.parentRun ? (
+            <section>
+              <h2 className="mb-3 font-display text-base font-semibold tracking-tight">Lineage</h2>
+              <RunLineage links={links} />
+            </section>
+          ) : null}
+
           <section>
             <h2 className="mb-3 font-display text-base font-semibold tracking-tight">Evidence seal</h2>
             <HashSeal digest={digest} chain={chainStatus} />

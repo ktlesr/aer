@@ -104,7 +104,7 @@ describe("buildAuditPacket — self-verifying chain", () => {
   it("verifies from the packet alone", () => {
     const { chainedEvents, chainedRun } = chained();
     const packet = buildAuditPacket(chainedRun, chainedEvents, findings, gen);
-    expect(packet.schema_version).toBe("1.2");
+    expect(packet.schema_version).toBe("1.3");
     expect(packet.chain.algorithm).toBe("sha256");
     const res = verifyChain(packetToChainLinks(packet), packetSeal(packet), packet.run.id);
     expect(res).toMatchObject({ ok: true, status: "verified" });

@@ -4,6 +4,7 @@ import { ApiError, makeRequestId } from "@/lib/api/errors";
 import { jsonOk, toErrorResponse } from "@/lib/api/respond";
 import { requireRun, serializeExport, toJsonInput } from "@/lib/api/helpers";
 import { buildAuditPacket } from "@/lib/audit/packet";
+import { resolveLinks } from "@/lib/audit/sourced";
 
 export async function POST(
   request: Request,
@@ -28,12 +29,13 @@ export async function POST(
       organizationId: auth.organizationId,
       projectId: auth.projectId,
     };
-    const [events, findings] = await Promise.all([
+    const [events, findings, links] = await Promise.all([
       prisma.agentEvent.findMany({ where: scope, orderBy: { seq: "asc" } }),
       prisma.redactionFinding.findMany({ where: scope }),
+      resolveLinks(auth, run),
     ]);
 
-    const packet = buildAuditPacket(run, events, findings, new Date());
+    const packet = buildAuditPacket(run, events, findings, new Date(), links);
 
     const exp = await prisma.auditExport.create({
       data: {

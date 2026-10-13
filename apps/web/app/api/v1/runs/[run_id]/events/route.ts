@@ -58,6 +58,7 @@ export async function POST(
       output: data.output,
       metadata: data.metadata,
       captureDeclared: data.capture,
+      sourced: data.sourced,
     });
     // Stamp occurredAt here (not via the DB default) so the value that goes into the hash is
     // exactly the value that gets stored — otherwise the chain could never be re-verified.
@@ -85,6 +86,7 @@ export async function POST(
       seq: data.seq ?? null,
       findings: sortFindings(core.findings),
       capture: values.captureDeclared ?? null,
+      sourced: values.sourced ?? null,
     });
 
     const result = await prisma.$transaction(async (tx): Promise<StoredResult> => {
@@ -107,7 +109,10 @@ export async function POST(
           : null;
       if (existing) {
         const existingFindings = await tx.redactionFinding.findMany({ where: { eventId: existing.id } });
-        if (meaning(toEventCore(existing, existingFindings)) !== meaning({ ...core, seq: existing.seq })) {
+        if (
+          meaning(toEventCore(existing, existingFindings)) !== meaning({ ...core, seq: existing.seq }) ||
+          fingerprint(existing.sourced ?? null) !== fingerprint(values.sourced ?? null)
+        ) {
           throw new ApiError("conflict", "An event with this seq already exists with different content", 409);
         }
         out = {
@@ -146,6 +151,7 @@ export async function POST(
             metadata: toJsonInput(values.metadata),
             redactionPolicy: REDACTION_POLICY,
             captureDeclared: toJsonInput(values.captureDeclared),
+            sourced: toJsonInput(values.sourced),
             hash,
             prevHash,
           },

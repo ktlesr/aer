@@ -38,6 +38,9 @@ export async function POST(request: Request): Promise<Response> {
       sdkName: sdk?.sdkName,
       sdkVersion: sdk?.sdkVersion,
       captureDeclared: data.capture,
+      conversationRef: data.conversationRef,
+      turnRef: data.turnRef,
+      parentRunId: data.parentRunId,
     });
 
     // The SDK identity header is telemetry, not meaning: it is left out of the fingerprint.
@@ -48,6 +51,9 @@ export async function POST(request: Request): Promise<Response> {
       environment: values.environment ?? null,
       riskLevel: data.riskLevel ?? null,
       capture: values.captureDeclared ?? null,
+      conversationRef: values.conversationRef ?? null,
+      turnRef: values.turnRef ?? null,
+      parentRunId: values.parentRunId ?? null,
       findings: findings.map((f) => JSON.stringify([f.fieldPath, f.findingType, f.originalHash])).sort(),
     });
 
@@ -68,6 +74,12 @@ export async function POST(request: Request): Promise<Response> {
           sdkVersion: values.sdkVersion as string | undefined,
           redactionPolicy: REDACTION_POLICY,
           captureDeclared: toJsonInput(values.captureDeclared),
+          // Not checked against existing runs here: a missing or foreign parent is stored as given
+          // and resolved per tenant on read ("missing_context"), so the API never reveals whether
+          // another tenant's run id exists.
+          conversationRef: values.conversationRef as string | undefined,
+          turnRef: values.turnRef as string | undefined,
+          parentRunId: values.parentRunId as string | undefined,
           redactionCount: findings.length,
         },
       });
