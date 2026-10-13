@@ -165,6 +165,69 @@ await run.event({
 - The block is stored redacted and exported in the packet, but it is **not yet covered by the event
   chain hash** (planned).
 
+### Delivery: awaited, queued, and what happens when AER is unreachable
+
+Every write after `startRun` goes through one ordered queue, so events reach AER in the order you
+made them (that order is the evidence chain).
+
+| Call | Returns when | If AER can't take it |
+| --- | --- | --- |
+| `startRun()` | the run exists on AER | throws after `maxRetries` — decide whether to proceed |
+| `run.event()` | AER **accepted** the event (after anything queued before it) | throws — use it for steps that must not happen unrecorded |
+| `run.enqueue()` | the event is **queued** (and persisted, with a store) | retried in the background within the limits; if it never lands: `onDeliveryError`, `stats().failed`, and `complete()` refuses that run |
+| `run.complete()` | AER sealed the run | throws; `undelivered_events` (nothing sent) if an enqueued event of this run was never delivered |
+
+```ts
+import { AgentEvidenceRecorder } from "@ktlsr/collector-js";
+import { fileQueueStore } from "@ktlsr/collector-js/file-store"; // Node only, optional
+
+const recorder = new AgentEvidenceRecorder({
+  baseUrl, apiKey,
+  delivery: {
+    store: fileQueueStore("./var/aer-queue.json"),   // survive restarts; omit for in-memory
+    maxQueueItems: 1000, maxQueueBytes: 5_000_000,   // limits (defaults shown)
+    maxItemAgeMs: 600_000,                          // give up on a background event after 10 min
+    maxRetryDelayMs: 30_000,                        // cap on any wait, Retry-After included
+    whenFull: "throw",                              // or "wait" (backpressure)
+    onDeliveryError: (f) => log.warn("AER evidence not delivered", f.reason, f.runId),
+  },
+});
+await recorder.resume();                 // with a store: deliver what a previous process left
+// …
+const { delivered, failed, pending } = await recorder.flush(5_000);
+const closed = await recorder.shutdown(5_000); // before exit: stop accepting, drain, report the rest
+if (closed.checkpointsPending > 0) {
+  // A store save was still running at the deadline and may still land. Do NOT hand the same store
+  // to another recorder until this process has exited (or call shutdown() again without a timeout).
+}
+recorder.stats();                        // { queued, queuedBytes, delivered, failed, retries }
+```
+
+- **Retries:** network/timeout, 408, 429 and 5xx are retried with the same `Idempotency-Key`
+  (`Retry-After` honoured, each wait capped by `maxRetryDelayMs`); other 4xx (401, 404, 409, 422…)
+  are not. Never unbounded: awaited calls stop after `maxRetries`, queued events after `maxItemAgeMs`.
+- **Full queue:** `enqueue()` throws `queue_full` and queues nothing (or waits, with `whenFull: "wait"`).
+  Nothing is dropped silently.
+- **Exit:** pending retries keep a Node process alive (up to `maxItemAgeMs`) rather than lose
+  evidence; `shutdown(timeoutMs)` bounds that. Without a store, events still pending at shutdown are
+  reported through `onDeliveryError` (`reason: "closed"`); with a store they stay on disk.
+- **Shutdown and the store:** `shutdown()` without a timeout waits for every save it started, so
+  nothing of this recorder can be written after it returns. With a timeout the deadline wins and
+  any save still running is reported in `checkpointsPending`; while that is non-zero, don't give
+  the same store to another recorder (that save could overwrite the newer state). There is no
+  cross-process lock: never use one store file from two processes at the same time.
+- **Restart:** queued items keep their `Idempotency-Key`, so a resumed delivery of something that
+  had already landed is a replay, not a duplicate. Re-open the run with the same
+  `startRun({ idempotencyKey })` to keep adding to it.
+- **The store file** holds the capture-filtered request bodies and keys — never the API key. It is
+  written before AER's own redaction, so with a store the capture policy defaults to
+  `redacted_content` and `capture.mode: "full"` is refused. Keep it on a private path.
+- **Loading:** the store is loaded once — by `resume()` or implicitly on the first write. A damaged
+  file is refused: that recorder then accepts no writes (`store_not_loaded`) and never touches the
+  file. A failed save rejects the write (`store_failed`) and leaves no trace of it.
+- **Which to use:** `event()` for anything you must be able to prove (approvals, irreversible
+  actions); `enqueue()` for steps where continuing with a delivery warning is acceptable.
+
 ### Idempotency and retries
 
 Each `startRun` / `event` / `complete` call sends an `Idempotency-Key` header, generated once per
@@ -195,7 +258,7 @@ receipt.
 Besides your API key and the run/event payloads you pass in, every request carries two headers:
 
 ```
-x-aer-sdk: collector-js/0.5.0
+x-aer-sdk: collector-js/0.6.0
 idempotency-key: <random UUID, or your idempotencyKey>
 ```
 
@@ -205,7 +268,7 @@ to the `baseUrl` you configure.
 
 ## Errors
 
-Failed requests throw `RecorderError` with `code`, `message`, `status`, and optional `requestId`. Network/timeout failures use `code: "network"` and `status: 0`. A non-JSON response (e.g. a proxy error page) keeps its HTTP `status` and is never quoted in the message. The error never echoes the request URL, your API key or the response body.
+Failed requests throw `RecorderError` with `code`, `message`, `status`, and optional `requestId` / `retryAfterMs`. Queue codes: `queue_full`, `recorder_closed`, `undelivered_events`. Network/timeout failures use `code: "network"` and `status: 0`. A non-JSON response (e.g. a proxy error page) keeps its HTTP `status` and is never quoted in the message. The error never echoes the request URL, your API key or the response body.
 
 ```ts
 import { RecorderError } from "@ktlsr/collector-js";

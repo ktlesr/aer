@@ -1,8 +1,18 @@
 // collector-js — Agent Evidence Recorder collector SDK.
 // Small, dependency-light client over the v1 API. Uses the global fetch (Node 18+).
 import { applyCapture, capturePolicy, type CaptureOptions } from "./capture.js";
+import { DeliveryQueue, type DeliveryOptions, type FlushResult, type QueueItem, type QueueStats } from "./queue.js";
 
 export type { CaptureDeclaration, CaptureMode, CaptureOptions, CapturePayload } from "./capture.js";
+export type {
+  DeliveryFailure,
+  DeliveryOptions,
+  FlushResult,
+  QueueItem,
+  QueueState,
+  QueueStats,
+  QueueStore,
+} from "./queue.js";
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 
@@ -19,7 +29,7 @@ export type EventType =
   | "run_completed";
 
 /** Must match package.json "version" — src/index.test.ts fails if they drift. */
-export const SDK_VERSION = "0.5.0";
+export const SDK_VERSION = "0.6.0";
 
 /** Sent on every request so the server can tell collector-js runs from raw API calls. */
 const SDK_HEADER = `collector-js/${SDK_VERSION}`;
@@ -36,7 +46,10 @@ export interface RecorderOptions {
   environment?: string;
   /** Per-request timeout in ms (via AbortController). Default 10000. */
   timeoutMs?: number;
-  /** Max retries on network error or 5xx (never on 4xx). Default 2. */
+  /**
+   * Quick retries per request on network error/timeout, 408, 429 or 5xx (never other 4xx).
+   * Default 2. Waits honour Retry-After, capped by `delivery.maxRetryDelayMs`.
+   */
   maxRetries?: number;
   /** Override fetch (for tests). Defaults to the global fetch. */
   fetchImpl?: typeof fetch;
@@ -45,6 +58,11 @@ export interface RecorderOptions {
    * given; the server still redacts). See CaptureOptions.
    */
   capture?: CaptureOptions;
+  /**
+   * Ordering, limits and persistence for writes after startRun (see DeliveryOptions). Defaults:
+   * in memory, 1000 items / 5 MB, background items retried up to 10 minutes, full → throw.
+   */
+  delivery?: DeliveryOptions;
 }
 
 /**
@@ -177,13 +195,47 @@ export class RecorderError extends Error {
     message: string,
     public readonly status: number,
     public readonly requestId?: string,
+    /** From a 429/503 Retry-After header, in ms. */
+    public readonly retryAfterMs?: number,
   ) {
     super(message);
     this.name = "RecorderError";
   }
 }
 
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+/**
+ * Worth retrying with the same Idempotency-Key: the server may not have seen the request
+ * (network/timeout), is overloaded (408, 429, 5xx), or the response was unreadable. Any other
+ * 4xx (401, 404, 409, 422…) will fail the same way again.
+ */
+export function isRetryable(e: unknown): e is RecorderError {
+  return (
+    e instanceof RecorderError &&
+    (e.status === 0 || e.status === 408 || e.status === 429 || e.status >= 500 || e.code === "invalid_response")
+  );
+}
+
+/** Retry-After: delta-seconds or an HTTP date. Unparseable → undefined (own backoff applies). */
+function retryAfterMs(header: string | null): number | undefined {
+  if (!header) return undefined;
+  const secs = Number(header);
+  if (Number.isFinite(secs) && secs >= 0) return secs * 1000;
+  const at = Date.parse(header);
+  return Number.isNaN(at) ? undefined : Math.max(0, at - Date.now());
+}
+
+/** Wait `ms`, or until `stop` aborts — then the timer is cleared so it can't hold the process open. */
+const sleep = (ms: number, stop?: AbortSignal): Promise<void> =>
+  new Promise((resolve) => {
+    if (stop?.aborted) return resolve();
+    const t = setTimeout(done, ms);
+    function done() {
+      clearTimeout(t);
+      stop?.removeEventListener("abort", done);
+      resolve();
+    }
+    stop?.addEventListener("abort", done, { once: true });
+  });
 
 function newIdempotencyKey(): string {
   // ponytail: Web Crypto is global on Node >= 19 and in browsers/edge runtimes; the fallback only
@@ -207,6 +259,7 @@ class ApiClient {
   private readonly apiKey: string;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
+  private readonly maxRetryDelayMs: number;
   private readonly fetchImpl: typeof fetch;
 
   constructor(options: RecorderOptions) {
@@ -214,6 +267,7 @@ class ApiClient {
     this.apiKey = options.apiKey;
     this.timeoutMs = options.timeoutMs ?? 10_000;
     this.maxRetries = options.maxRetries ?? 2;
+    this.maxRetryDelayMs = options.delivery?.maxRetryDelayMs ?? 30_000;
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
@@ -221,9 +275,11 @@ class ApiClient {
    * One attempt. The timeout covers the whole exchange — headers AND body — so a server that
    * stalls mid-body can't hang the caller. Network/timeout failures throw RecorderError(network).
    */
-  private async attempt<T>(method: string, path: string, body: unknown, idempotencyKey: string): Promise<T> {
+  private async attempt<T>(method: string, path: string, body: unknown, idempotencyKey: string, stop?: AbortSignal): Promise<T> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const onStop = () => controller.abort();
+    stop?.addEventListener("abort", onStop, { once: true });
     let res: Response;
     let text: string;
     try {
@@ -244,6 +300,7 @@ class ApiClient {
       throw new RecorderError("network", `Request failed: ${method} ${path}`, 0);
     } finally {
       clearTimeout(timer);
+      stop?.removeEventListener("abort", onStop);
     }
 
     let json: unknown;
@@ -266,6 +323,7 @@ class ApiClient {
         err?.message ?? `HTTP ${res.status}`,
         res.status,
         err?.request_id,
+        retryAfterMs(res.headers.get("retry-after")),
       );
     }
     return json as T;
@@ -274,25 +332,26 @@ class ApiClient {
   /**
    * One logical operation. Its Idempotency-Key is fixed here, once, and reused by every retry, so
    * a retry after a lost response returns the first result instead of writing twice.
-   * Retries: network/timeout (status 0), 5xx, and a 2xx whose body was unreadable. Never 4xx.
+   * Retries (isRetryable): network/timeout, 408, 429, 5xx, unreadable 2xx — never other 4xx.
+   * Bounded: maxRetries attempts, each wait ≤ maxRetryDelayMs even if Retry-After asks for more.
    */
   async request<T>(
     method: string,
     path: string,
     body?: unknown,
     idempotencyKey: string = newIdempotencyKey(),
+    /** Aborts the request in flight and any wait between attempts (recorder shutdown). */
+    stop?: AbortSignal,
   ): Promise<T> {
     let lastError: unknown;
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
+      if (stop?.aborted) throw new RecorderError("recorder_closed", "Recorder shut down", 0);
       try {
-        return await this.attempt<T>(method, path, body, idempotencyKey);
+        return await this.attempt<T>(method, path, body, idempotencyKey, stop);
       } catch (err) {
         lastError = err;
-        const retryable =
-          err instanceof RecorderError &&
-          (err.status === 0 || err.status >= 500 || err.code === "invalid_response");
-        if (!retryable || attempt === this.maxRetries) throw err;
-        await sleep(200 * (attempt + 1));
+        if (!isRetryable(err) || attempt === this.maxRetries) throw err;
+        await sleep(Math.min(err.retryAfterMs ?? 200 * (attempt + 1), this.maxRetryDelayMs), stop);
       }
     }
     throw lastError;
@@ -314,33 +373,63 @@ function captured<T extends object>(body: T, capture: CaptureOptions | undefined
 /** A live run handle. Emit events, then complete it. */
 export class AgentRun {
   constructor(
-    private readonly client: ApiClient,
+    private readonly queue: DeliveryQueue,
     public readonly id: string,
     private readonly capture?: CaptureOptions,
     /** False when lineage refs were sent but the server did not store them (older server). */
     public readonly lineageStored?: boolean,
   ) {}
 
+  private item(kind: QueueItem["kind"], path: string, body: unknown, key: string | undefined, background: boolean): QueueItem {
+    return {
+      id: newIdempotencyKey(),
+      kind,
+      runId: this.id,
+      path,
+      body,
+      idempotencyKey: key ?? newIdempotencyKey(),
+      enqueuedAt: Date.now(),
+      background,
+    };
+  }
+
+  /**
+   * Record an event and wait until AER has accepted it (in order, after anything queued before).
+   * Throws if it cannot be delivered — use this for steps that must not proceed unrecorded.
+   */
   async event(input: EventInput): Promise<EventResult> {
     const [event, key] = withoutKey(input);
     const body = captured(event, this.capture, input.type);
-    const res = await this.client.request<{
-      event: { id: string; sourcedStored?: boolean };
-      redaction: { findingsCount: number };
-    }>("POST", `/api/v1/runs/${this.id}/events`, body, key);
+    const { settled } = await this.queue.add(this.item("event", `/api/v1/runs/${this.id}/events`, body, key, false));
+    const res = (await settled) as { event: { id: string; sourcedStored?: boolean }; redaction: { findingsCount: number } };
     const result: EventResult = { eventId: res.event.id, findingsCount: res.redaction.findingsCount };
     if ((body as { sourced?: unknown }).sourced !== undefined) result.sourcedStored = res.event.sourcedStored === true;
     return result;
   }
 
-  /** Seal the run. Keep the returned receipt somewhere you control — it is your anchor. */
+  /**
+   * Queue an event for background delivery and return as soon as it is queued (and persisted, with
+   * a store). Capture policy is applied before queueing. Delivery is retried within the limits;
+   * an event that never lands is reported (onDeliveryError, stats) and blocks complete() for this
+   * run. Throws `queue_full` (or waits, with whenFull: "wait") when the queue is at its limits.
+   */
+  async enqueue(input: EventInput): Promise<{ idempotencyKey: string }> {
+    const [event, key] = withoutKey(input);
+    const body = captured(event, this.capture, input.type);
+    const item = this.item("event", `/api/v1/runs/${this.id}/events`, body, key, true);
+    await this.queue.add(item);
+    return { idempotencyKey: item.idempotencyKey };
+  }
+
+  /**
+   * Seal the run, after everything queued before it. Refuses (`undelivered_events`, nothing sent)
+   * when an event queued with enqueue() for this run was never delivered: an incomplete run is
+   * never presented as complete. Keep the returned receipt somewhere you control.
+   */
   async complete(input: CompleteInput = {}): Promise<CompleteResult> {
-    const res = await this.client.request<{ receipt?: Receipt | null }>(
-      "POST",
-      `/api/v1/runs/${this.id}/complete`,
-      { status: input.status ?? "completed", endedAt: input.endedAt },
-      input.idempotencyKey,
-    );
+    const body = { status: input.status ?? "completed", endedAt: input.endedAt };
+    const { settled } = await this.queue.add(this.item("complete", `/api/v1/runs/${this.id}/complete`, body, input.idempotencyKey, false));
+    const res = (await settled) as { receipt?: Receipt | null };
     return { receipt: res?.receipt ?? null };
   }
 }
@@ -348,16 +437,55 @@ export class AgentRun {
 /** Entry point: create a recorder bound to a project (via the API key), then start runs. */
 export class AgentEvidenceRecorder {
   private readonly client: ApiClient;
+  private readonly queue: DeliveryQueue;
   private readonly environment?: string;
   private readonly capture?: CaptureOptions;
 
   constructor(options: RecorderOptions) {
+    // A store writes queued bodies to disk BEFORE the server redacts them. So with a store the
+    // client policy defaults to redacted_content (declared to the server as such), and an explicit
+    // "full" is refused — raw passwords/tokens must not reach the disk by default or by accident.
+    if (options.delivery?.store && options.capture?.mode === "full") {
+      throw new Error('delivery.store cannot be combined with capture.mode "full": queued bodies are written to disk before server redaction');
+    }
     this.client = new ApiClient(options);
     this.environment = options.environment;
-    this.capture = options.capture;
+    this.capture = options.capture ?? (options.delivery?.store ? { mode: "redacted_content" } : undefined);
+    this.queue = new DeliveryQueue(
+      options.delivery ?? {},
+      (item, signal) => this.client.request("POST", item.path, item.body, item.idempotencyKey, signal),
+      isRetryable,
+      (code, message) => new RecorderError(code, message, 0),
+    );
+  }
+
+  /** Delivery counters: queued items/bytes, delivered, failed, retries. */
+  stats(): QueueStats {
+    return this.queue.stats();
+  }
+
+  /** Wait for the queue to drain (or `timeoutMs`). Reports what is still pending; never throws. */
+  flush(timeoutMs?: number): Promise<FlushResult> {
+    return this.queue.flush(timeoutMs);
+  }
+
+  /**
+   * Stop accepting writes and deliver what can be delivered within `timeoutMs`. Without a store,
+   * anything still pending is reported as failed (onDeliveryError) — it cannot outlive the process.
+   * With a store it stays persisted for resume(). Call before the process exits.
+   */
+  shutdown(timeoutMs?: number): Promise<FlushResult> {
+    return this.queue.shutdown(timeoutMs);
+  }
+
+  /** Load items a previous process persisted and deliver them with their original Idempotency-Keys. */
+  resume(): Promise<number> {
+    return this.queue.resume();
   }
 
   async startRun(input: StartRunInput): Promise<AgentRun> {
+    // A shut-down recorder sends nothing — startRun included (it does not go through the queue).
+    if (this.queue.isClosed) throw new RecorderError("recorder_closed", "Recorder is shut down; no run was started", 0);
     const [run, key] = withoutKey(input);
     const body = captured(run, this.capture, "agent");
     const res = await this.client.request<{ run: { id: string } & Record<string, unknown> }>(
@@ -365,10 +493,11 @@ export class AgentEvidenceRecorder {
       "/api/v1/runs",
       this.environment === undefined ? body : { ...body, environment: this.environment },
       key,
+      this.queue.stopSignal,
     );
     const sent = body as Record<string, unknown>;
     const refs = (["conversationRef", "turnRef", "parentRunId"] as const).filter((k) => sent[k] !== undefined);
     const lineageStored = refs.length ? refs.every((k) => res.run[k] === sent[k]) : undefined;
-    return new AgentRun(this.client, res.run.id, this.capture, lineageStored);
+    return new AgentRun(this.queue, res.run.id, this.capture, lineageStored);
   }
 }

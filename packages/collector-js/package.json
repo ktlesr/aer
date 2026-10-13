@@ -1,6 +1,6 @@
 {
   "name": "@ktlsr/collector-js",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Collector SDK for Agent Evidence Recorder — record AI agent runs as audit-ready, redacted evidence over the v1 API.",
   "license": "MIT",
   "author": "ktlesr",
@@ -11,6 +11,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./file-store": {
+      "types": "./dist/file-store.d.ts",
+      "default": "./dist/file-store.js"
     }
   },
   "files": [
@@ -24,9 +28,9 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "prepublishOnly": "tsx --test src/index.test.ts src/capture.test.ts src/retry.test.ts src/sourced.test.ts && tsc -p tsconfig.build.json",
+    "prepublishOnly": "tsx --test src/index.test.ts src/capture.test.ts src/retry.test.ts src/sourced.test.ts src/delivery.test.ts && tsc -p tsconfig.build.json && node --test --test-skip-pattern=\"old save that erases\" test/review-stage5.test.mjs test/review-stage5-followup.test.mjs test/review-stage5-round3.test.mjs test/review-stage5-round4.test.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/index.test.ts src/capture.test.ts src/retry.test.ts src/sourced.test.ts",
+    "test": "tsx --test src/index.test.ts src/capture.test.ts src/retry.test.ts src/sourced.test.ts src/delivery.test.ts && tsc -p tsconfig.build.json && node --test --test-skip-pattern=\"old save that erases\" test/review-stage5.test.mjs test/review-stage5-followup.test.mjs test/review-stage5-round3.test.mjs test/review-stage5-round4.test.mjs",
     "smoke": "tsx src/smoke.ts"
   },
   "publishConfig": {

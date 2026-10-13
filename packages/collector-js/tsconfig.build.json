@@ -1,5 +1,8 @@
 {
   "extends": "./tsconfig.json",
   "comment": "Publish build only — compiles the public entrypoint, never the smoke test.",
-  "include": ["src/index.ts"]
+  "include": [
+    "src/index.ts",
+    "src/file-store.ts"
+  ]
 }
