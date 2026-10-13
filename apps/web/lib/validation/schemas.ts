@@ -185,11 +185,32 @@ export const createEventSchema = z.object({
   output: z.unknown().optional(),
   riskLevel: riskLevelSchema.optional(),
   costMicroUsd: z.number().int().nonnegative().optional(),
-  metadata: metadataSchema.optional(),
+  // `aer_approval` is written only by AER for verified approvals; a client may not claim it.
+  metadata: metadataSchema
+    .refine((m) => !Object.prototype.hasOwnProperty.call(m, "aer_approval"), "metadata.aer_approval is reserved for AER")
+    .optional(),
   capture: captureDeclaredSchema.optional(),
   sourced: sourcedSchema.optional(),
 });
 export type CreateEventInput = z.infer<typeof createEventSchema>;
+
+/** Stage 6 — verified approvals (see lib/approvals/service.ts). */
+export const requestApprovalSchema = z
+  .object({
+    action: z.string().min(1).max(300),
+    params: z.unknown().optional(),
+    ttlSeconds: z.number().int().min(30).max(86_400).optional(),
+    maxUses: z.number().int().min(1).max(10).optional(),
+  })
+  .strict();
+export const consumeApprovalSchema = z.object({ action: z.string().min(1).max(300), params: z.unknown().optional() }).strict();
+export const approvalOutcomeSchema = z
+  .object({
+    status: z.enum(["succeeded", "failed"]),
+    externalRef: z.string().min(1).max(200).optional(),
+    receiptHash: z.string().regex(/^sha256:[0-9a-f]{64}$/, "sha256:<64 lowercase hex>").optional(),
+  })
+  .strict();
 
 export const completeRunSchema = z.object({
   status: z.enum(["completed", "failed"]),

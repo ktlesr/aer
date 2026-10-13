@@ -47,6 +47,9 @@ enum EventType {
   redaction_applied
   human_approval_requested
   human_approval_granted
+  // Written only by AER itself (Stage 6), never accepted from the API:
+  human_approval_rejected
+  human_approval_used
   error
   final_output
   run_completed
@@ -66,6 +69,14 @@ enum Severity {
   low
   medium
   high
+}
+
+/// Verified approval lifecycle. "expired" is not stored: it is pending/approved past expiresAt.
+enum ApprovalStatus {
+  pending
+  approved
+  rejected
+  revoked
 }
 
 enum ExportType {
@@ -179,6 +190,7 @@ model AgentRun {
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project      Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+  approvals    Approval[]
   events       AgentEvent[]
   findings     RedactionFinding[]
   exports      AuditExport[]
@@ -258,6 +270,39 @@ model AuditExport {
 
   @@index([runId])
   @@index([organizationId, projectId])
+}
+
+/// Verified human approval (Stage 6). Requested by the agent (API key) for ONE action on ONE run,
+/// decided only by a signed-in user of the same workspace in the dashboard, consumed by the agent
+/// with the exact same action and parameters. The agent's key can request and consume, never approve.
+/// actionHash / paramsHash = salted sha256 over the RAW action name / canonical params (so two
+/// requests that differ only in a redacted value can't share an approval); only redacted copies
+/// are stored, never raw values or unsalted hashes.
+model Approval {
+  id              String         @id @default(cuid())
+  organizationId  String
+  projectId       String
+  runId           String
+  action          String         @db.VarChar(300)
+  paramsRedacted  Json?
+  actionHash      String         @db.VarChar(64)
+  paramsHash      String         @db.VarChar(64)
+  paramsSalt      String         @db.VarChar(32)
+  status          ApprovalStatus @default(pending)
+  maxUses         Int            @default(1)
+  uses            Int            @default(0)
+  requestedAt     DateTime       @default(now())
+  expiresAt       DateTime
+  decidedAt       DateTime?
+  decidedByUserId String?
+  lastUsedAt      DateTime?
+  /// What the application says happened afterwards (external id/receipt/result). A claim, not verified.
+  outcome         Json?
+
+  run AgentRun @relation(fields: [runId, organizationId, projectId], references: [id, organizationId, projectId], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([organizationId, projectId, status])
 }
 
 /// Idempotency-Key ledger for POST /runs, /events, /complete. Claimed inside the same transaction

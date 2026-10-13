@@ -17,6 +17,8 @@ export interface TimelineEvent {
   riskLevel: string | null;
   costMicroUsd: number | null;
   redactionCount: number;
+  /** For approval events: who acted and what AER verified (see lib/approvals/badge.ts). */
+  approval?: "request" | "decision" | "use" | "reported";
 }
 
 function summarize(value: unknown): string {
@@ -73,6 +75,23 @@ function EventRow({ event, index }: { event: TimelineEvent; index: number }) {
         </div>
 
         <div className="mt-1.5 font-medium">{event.title}</div>
+        {event.approval === "decision" ? (
+          <div className="mt-1 font-mono text-[0.66rem] uppercase tracking-wider" style={{ color: "var(--seal)" }}>
+            Verified by AER · signed-in user decision
+          </div>
+        ) : event.approval === "request" ? (
+          <div className="mt-1 font-mono text-[0.66rem] uppercase tracking-wider text-muted-foreground">
+            Requested by the agent · recorded by AER · no decision yet at this point
+          </div>
+        ) : event.approval === "use" ? (
+          <div className="mt-1 font-mono text-[0.66rem] uppercase tracking-wider" style={{ color: "var(--seal)" }}>
+            Checked by AER · approval used for the matching action
+          </div>
+        ) : event.approval === "reported" ? (
+          <div className="mt-1 font-mono text-[0.66rem] uppercase tracking-wider text-amber-500">
+            Reported by the agent · not verified
+          </div>
+        ) : null}
 
         <div className="mt-1 font-mono text-xs text-muted-foreground">
           <LocalTime iso={event.occurredAt} />

@@ -66,6 +66,7 @@ export async function getRunDetail(scope: DashboardScope, runId: string) {
       events: { orderBy: { seq: "asc" } },
       findings: { orderBy: { createdAt: "asc" } },
       exports: { orderBy: { createdAt: "desc" } },
+      approvals: { orderBy: { requestedAt: "asc" } },
     },
   });
 }

@@ -15,7 +15,7 @@ import type { AuthContext } from "./auth";
 export const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 const KEY_FORMAT = /^[A-Za-z0-9._:-]{1,200}$/;
 
-export type Operation = "run.create" | "event.create" | "run.complete";
+export type Operation = "run.create" | "event.create" | "run.complete" | "approval.create" | "approval.consume";
 export interface StoredResult {
   status: number;
   body: unknown;

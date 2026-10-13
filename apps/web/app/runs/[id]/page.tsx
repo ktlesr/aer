@@ -9,6 +9,9 @@ import { RawJsonViewer } from "@/components/raw-json-viewer";
 import { HashSeal, type ChainStatus } from "@/components/hash-seal";
 import { RunPager } from "@/components/run-pager";
 import { RunLineage, SourcedEvidence } from "@/components/sourced-evidence";
+import { ApprovalsPanel } from "@/components/approvals-panel";
+import { approvalBadge } from "@/lib/approvals/badge";
+import { prisma } from "@/lib/prisma";
 import { verifyChain } from "@ktlsr/evidence-chain";
 import { getRunDetail, getRunNeighbors } from "@/lib/dashboard/queries";
 import { requireDashboardAccess } from "@/lib/dashboard/access";
@@ -70,6 +73,12 @@ export default async function RunDetailPage({
     return acc;
   }, {});
 
+  const approvalIds = new Set(run.approvals.map((a) => a.id));
+  const deciderIds = [...new Set(run.approvals.map((a) => a.decidedByUserId).filter((x): x is string => !!x))];
+  const deciders = Object.fromEntries(
+    (await prisma.user.findMany({ where: { id: { in: deciderIds } }, select: { id: true, email: true } })).map((u) => [u.id, u.email]),
+  );
+
   const events: TimelineEvent[] = run.events.map((e) => ({
     id: e.id,
     seq: e.seq,
@@ -81,6 +90,7 @@ export default async function RunDetailPage({
     riskLevel: e.riskLevel,
     costMicroUsd: e.costMicroUsd,
     redactionCount: findingCountByEvent[e.id] ?? 0,
+    approval: approvalBadge(e.type, e.metadata, approvalIds),
   }));
 
   return (
@@ -170,6 +180,13 @@ export default async function RunDetailPage({
             <section>
               <h2 className="mb-3 font-display text-base font-semibold tracking-tight">Lineage</h2>
               <RunLineage links={links} />
+            </section>
+          ) : null}
+
+          {run.approvals.length > 0 ? (
+            <section>
+              <h2 className="mb-3 font-display text-base font-semibold tracking-tight">Approvals</h2>
+              <ApprovalsPanel approvals={run.approvals} deciders={deciders} runOpen={run.status === "running"} />
             </section>
           ) : null}
 
