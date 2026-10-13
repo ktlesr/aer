@@ -8,6 +8,11 @@ Scope of those words: redaction covers the patterns and secret-named fields AER 
 all personal data; the hash chain proves internal consistency, not resistance to an operator who
 rewrites the database (no external seal yet). Details: `docs/hardening/`.
 
+For document-grounded assistants, a run can link to the previous turn and an event can record the
+context used, the retrieved candidates and the cited sources (with version and content hash). This
+records what the application reported; it does not show that a source is correct, current or
+legally applicable, and it is not a record of the model's internal reasoning.
+
 > Not an observability tool. See [`docs/PRODUCT.md`](docs/PRODUCT.md) for positioning.
 
 ## Repo Layout
