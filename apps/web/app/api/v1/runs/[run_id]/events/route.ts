@@ -2,15 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { authenticate } from "@/lib/api/auth";
 import { ApiError, makeRequestId } from "@/lib/api/errors";
 import { jsonOk, toErrorResponse } from "@/lib/api/respond";
-import {
-  RUN_TX,
-  lockRun,
-  readJson,
-  redactFields,
-  requireRun,
-  serializeEvent,
-  toJsonInput,
-} from "@/lib/api/helpers";
+import { RUN_TX, lockRun, readJson, requireRun, serializeEvent } from "@/lib/api/helpers";
+import { chainHead, insertEvent, prepareEvent } from "@/lib/api/appendEvent";
 import {
   claimKey,
   fingerprint,
@@ -21,8 +14,7 @@ import {
 } from "@/lib/api/idempotency";
 import { toEventCore } from "@/lib/audit/chainAdapter";
 import { createEventSchema, parseBody } from "@/lib/validation/schemas";
-import { REDACTION_POLICY } from "@/lib/redaction";
-import { genesisHash, hashEvent, type EventCore } from "@ktlsr/evidence-chain";
+import type { EventCore } from "@ktlsr/evidence-chain";
 
 /** An event's meaning, independent of where/when it landed (seq, occurredAt) — for replay checks. */
 const meaning = (c: EventCore) => fingerprint({ ...c, seq: 0, occurredAt: "", findings: sortFindings(c.findings) });
@@ -52,33 +44,8 @@ export async function POST(
     const idemKey = readIdempotencyKey(request);
 
     // Redact every persisted field BEFORE persistence; only redacted snapshots are stored.
-    const { values, findings } = redactFields({
-      title: data.title,
-      input: data.input,
-      output: data.output,
-      metadata: data.metadata,
-      captureDeclared: data.capture,
-      sourced: data.sourced,
-    });
-    // Stamp occurredAt here (not via the DB default) so the value that goes into the hash is
-    // exactly the value that gets stored — otherwise the chain could never be re-verified.
-    const occurredAt = new Date();
-    const core: Omit<EventCore, "seq"> = {
-      type: data.type,
-      title: values.title as string,
-      occurredAt: occurredAt.toISOString(),
-      inputRedacted: toJsonInput(values.input) ?? null,
-      outputRedacted: toJsonInput(values.output) ?? null,
-      riskLevel: data.riskLevel ?? null,
-      costMicroUsd: data.costMicroUsd ?? null,
-      metadata: toJsonInput(values.metadata) ?? null,
-      findings: findings.map((f) => ({
-        findingType: f.findingType,
-        severity: f.severity,
-        fieldPath: f.fieldPath,
-        originalHash: f.originalHash,
-      })),
-    };
+    const prepared = prepareEvent({ ...data, capture: data.capture, sourced: data.sourced });
+    const { core, values } = prepared;
     // Request identity only — the chain hash still uses `core.findings` in stored order.
     const requestHash = fingerprint({
       ...core,
@@ -95,12 +62,6 @@ export async function POST(
         const replay = await claimKey(tx, auth, idemKey, "event.create", run.id, requestHash);
         if (replay) return replay;
       }
-
-      const head = await tx.agentEvent.findFirst({
-        where: { runId: run.id },
-        orderBy: { seq: "desc" },
-        select: { seq: true, hash: true },
-      });
 
       let out: { status: number; body: unknown };
       const existing =
@@ -127,62 +88,14 @@ export async function POST(
         if (run.status === "completed" || run.status === "failed") {
           throw new ApiError("validation_error", "run_already_completed", 422);
         }
+        const head = await chainHead(tx, run.id);
         if (data.seq !== undefined && head && data.seq <= head.seq) {
           throw new ApiError("conflict", "seq must be greater than the run's latest seq", 409);
         }
-        const seq = data.seq ?? (head?.seq ?? 0) + 1;
-        // Append-only chain: link to the current head, or genesis for the first event.
-        const prevHash = head?.hash ?? genesisHash(run.id);
-        const hash = hashEvent(prevHash, { ...core, seq });
-
-        const created = await tx.agentEvent.create({
-          data: {
-            organizationId: auth.organizationId,
-            projectId: auth.projectId,
-            runId: run.id,
-            seq,
-            type: data.type,
-            title: core.title,
-            occurredAt,
-            inputRedacted: toJsonInput(values.input),
-            outputRedacted: toJsonInput(values.output),
-            riskLevel: data.riskLevel,
-            costMicroUsd: data.costMicroUsd,
-            metadata: toJsonInput(values.metadata),
-            redactionPolicy: REDACTION_POLICY,
-            captureDeclared: toJsonInput(values.captureDeclared),
-            sourced: toJsonInput(values.sourced),
-            hash,
-            prevHash,
-          },
-        });
-
-        if (findings.length > 0) {
-          await tx.redactionFinding.createMany({
-            data: findings.map((f) => ({
-              organizationId: auth.organizationId,
-              projectId: auth.projectId,
-              runId: run.id,
-              eventId: created.id,
-              findingType: f.findingType,
-              severity: f.severity,
-              fieldPath: f.fieldPath,
-              originalHash: f.originalHash,
-            })),
-          });
-        }
-
-        await tx.agentRun.update({
-          where: { id: run.id },
-          data: {
-            eventCount: { increment: 1 },
-            redactionCount: { increment: findings.length },
-            costMicroUsd: data.costMicroUsd ? { increment: data.costMicroUsd } : undefined,
-          },
-        });
+        const created = await insertEvent(tx, run, prepared, data.seq);
         out = {
           status: 201,
-          body: { event: serializeEvent(created), redaction: { findingsCount: findings.length } },
+          body: { event: serializeEvent(created), redaction: { findingsCount: prepared.findings.length } },
         };
       }
 

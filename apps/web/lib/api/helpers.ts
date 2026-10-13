@@ -69,7 +69,7 @@ export const RUN_TX = { maxWait: 10_000, timeout: 20_000 } as const;
 export async function lockRun(
   tx: Prisma.TransactionClient,
   runId: string,
-  auth: AuthContext,
+  auth: Pick<AuthContext, "organizationId" | "projectId">,
 ): Promise<AgentRun> {
   const locked = await tx.$queryRaw<{ id: string }[]>`
     SELECT "id" FROM "AgentRun"
