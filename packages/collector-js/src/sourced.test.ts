@@ -99,3 +99,14 @@ test("redacted_content masks a context entry whose key is secret-named", async (
   assert.ok(!JSON.stringify(sent[1]).includes("synthetic-pw"));
   assert.deepEqual((sent[1].sourced as SourcedEvidence).context!.used![0].value, "[REDACTED_SECRET]");
 });
+
+test("complete() returns the server's receipt, or null from a server without run manifests", async () => {
+  const receipt = { statement: { run_id: "run_1", manifest_hash: "sha256:ab" }, signature: null };
+  const fetchWith = (body: unknown) =>
+    (async (_u: string | URL | Request, init?: RequestInit) =>
+      new Response(JSON.stringify(String(init?.body).includes("agentName") ? { run: { id: "run_1" } } : body), { status: init?.method === "POST" && String(init?.body).includes("status") ? 200 : 201 })) as typeof fetch;
+  for (const [body, expected] of [[{ run: { id: "run_1" }, receipt }, receipt], [{ run: { id: "run_1" } }, null]] as const) {
+    const run = await new AgentEvidenceRecorder({ baseUrl: "http://aer.test", apiKey: "k", fetchImpl: fetchWith(body) }).startRun({ agentName: "a" });
+    assert.deepEqual((await run.complete()).receipt, expected);
+  }
+});

@@ -177,16 +177,25 @@ status is a no-op; a different status or `endedAt` is `409`.
 
 `EventType` is one of: `run_started`, `user_input`, `model_call`, `tool_call`, `redaction_applied`, `human_approval_requested`, `human_approval_granted`, `error`, `final_output`, `run_completed`.
 
-### `run.complete(input?) → Promise<void>`
+### `run.complete(input?) → Promise<{ receipt: Receipt | null }>`
 
 `input`: `{ status?: "completed" | "failed"; endedAt?: string; idempotencyKey?: string }` (defaults to `completed`).
+
+Sealing returns a **receipt**: the run manifest hash (which commits to every event, the run's
+context and the algorithm versions), the chain head and the event count — Ed25519-signed if the
+server has a signing key. **Store it somewhere you control.** Later,
+`npx @ktlsr/aer-verify packet.json --receipt receipt.json --trusted-key key.json` shows whether an
+exported packet is still the run you were handed a receipt for — a packet rewritten and fully
+recomputed afterwards will not match. `issued_at` is AER's own clock, not an independent timestamp.
+`receipt` is `null` from servers that predate run manifests. Repeating `complete` returns the same
+receipt.
 
 ## What the SDK sends
 
 Besides your API key and the run/event payloads you pass in, every request carries two headers:
 
 ```
-x-aer-sdk: collector-js/0.4.0
+x-aer-sdk: collector-js/0.5.0
 idempotency-key: <random UUID, or your idempotencyKey>
 ```
 

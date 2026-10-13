@@ -19,7 +19,7 @@ export type EventType =
   | "run_completed";
 
 /** Must match package.json "version" — src/index.test.ts fails if they drift. */
-export const SDK_VERSION = "0.4.0";
+export const SDK_VERSION = "0.5.0";
 
 /** Sent on every request so the server can tell collector-js runs from raw API calls. */
 const SDK_HEADER = `collector-js/${SDK_VERSION}`;
@@ -132,6 +132,33 @@ export interface CompleteInput {
   idempotencyKey?: string;
   status?: "completed" | "failed";
   endedAt?: string;
+}
+
+/**
+ * What AER states when it seals a run: the run manifest hash (binding events, run context and
+ * versions), chain head and event count — optionally Ed25519-signed by the server. Store it
+ * yourself (outside AER): `aer-verify packet.json --receipt receipt.json` then detects a packet
+ * that was rewritten later, even if it was fully recomputed. `issued_at` is AER's clock.
+ * Null from servers older than run manifests.
+ */
+export interface Receipt {
+  statement: {
+    receipt_version: string;
+    run_id: string;
+    organization_id: string;
+    project_id: string;
+    manifest_version: string;
+    manifest_hash: string;
+    chain_head: string;
+    event_count: number;
+    issued_at: string;
+    clock: string;
+  };
+  signature: { alg: "Ed25519"; key_id: string; value: string } | null;
+}
+
+export interface CompleteResult {
+  receipt: Receipt | null;
 }
 
 export interface EventResult {
@@ -306,13 +333,15 @@ export class AgentRun {
     return result;
   }
 
-  async complete(input: CompleteInput = {}): Promise<void> {
-    await this.client.request(
+  /** Seal the run. Keep the returned receipt somewhere you control — it is your anchor. */
+  async complete(input: CompleteInput = {}): Promise<CompleteResult> {
+    const res = await this.client.request<{ receipt?: Receipt | null }>(
       "POST",
       `/api/v1/runs/${this.id}/complete`,
       { status: input.status ?? "completed", endedAt: input.endedAt },
       input.idempotencyKey,
     );
+    return { receipt: res?.receipt ?? null };
   }
 }
 
