@@ -335,3 +335,50 @@ test("a second shutdown after a timed one settles (persisted items are reported,
   assert.deepEqual([again.pending, again.checkpointsPending], [1, 0]);
   assert.equal((await r.flush()).pending, 1);
 });
+
+test("file store: temp files are unpredictable and exclusively created; no temp file is left behind", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "aer-queue-"));
+  const file = join(dir, "queue.json");
+  // A planted file at the old predictable temp name must be neither written nor needed.
+  const planted = `${file}.${process.pid}.tmp`;
+  writeFileSync(planted, "planted");
+  const store = fileQueueStore(file);
+  await store.save({ version: 1, items: [], failedRuns: ["r1"] });
+  assert.equal(readFileSync(planted, "utf8"), "planted");
+  assert.deepEqual(JSON.parse(readFileSync(file, "utf8")).failedRuns, ["r1"]);
+  const { readdirSync } = await import("node:fs");
+  assert.deepEqual(readdirSync(dir).filter((f) => f.endsWith(".tmp") && f !== `queue.json.${process.pid}.tmp`), []);
+});
+
+// Review (temp-file fix) S1: the reviewer's partial-write test patched fs.writeFile; the fix (as the
+// reviewer recommended) writes through an exclusively opened handle, so the same intent is tested here.
+test("file store: a partial write through the owned handle is cleaned up; old snapshot and recovery intact", async () => {
+  const fsp = (await import("node:fs/promises")).default;
+  const { syncBuiltinESMExports } = await import("node:module");
+  const dir = mkdtempSync(join(tmpdir(), "aer-queue-"));
+  const file = join(dir, "queue.json");
+  const store = fileQueueStore(file);
+  await store.save({ version: 1, items: [], failedRuns: ["old"] });
+  const original = fsp.open;
+  try {
+    fsp.open = (async (...args: Parameters<typeof original>) => {
+      const fh = await original(...args);
+      const write = fh.writeFile.bind(fh);
+      fh.writeFile = (async () => {
+        await write("{partial");
+        throw Object.assign(new Error("synthetic"), { code: "ENOSPC" });
+      }) as typeof fh.writeFile;
+      return fh;
+    }) as typeof original;
+    syncBuiltinESMExports();
+    await assert.rejects(store.save({ version: 1, items: [], failedRuns: ["new"] }), (e: NodeJS.ErrnoException) => e.code === "ENOSPC");
+  } finally {
+    fsp.open = original;
+    syncBuiltinESMExports();
+  }
+  const { readdirSync } = await import("node:fs");
+  assert.deepEqual(readdirSync(dir), ["queue.json"]);
+  assert.deepEqual(JSON.parse(readFileSync(file, "utf8")).failedRuns, ["old"]);
+  await store.save({ version: 1, items: [], failedRuns: ["recovered"] });
+  assert.deepEqual(JSON.parse(readFileSync(file, "utf8")).failedRuns, ["recovered"]);
+});

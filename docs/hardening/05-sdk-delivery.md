@@ -162,3 +162,34 @@ Zorunlu beş kontrol inceleyici ortamında geçti. Yeni bulgular:
 | --- | --- | --- |
 | P2 T4-1 süreli kapanıştan sonra ikinci süresiz `shutdown()` çözülmüyor | Durmuş kuyrukta kalıcı öğeler "süren iş" sayılmaz (worker onları bir daha teslim etmez); yalnız süren yükleme/ekleme/kayıt beklenir, öğeler `pending` raporlanır | round4 test 3, `delivery.test.ts` |
 | P2 T4-2 README süreli kapanış sonrası store devir tehlikesini anlatmıyor | README: `checkpointsPending` kontrolü örneği; sıfır değilken store'u başka recorder'a verme; süreçler arası kilit yok | round4 test 2 (tehlikeyi gösterir — `checkpointsPending` yok sayılırsa kayıp) |
+
+### 9.4 Commit sonrası güvenlik incelemesi: geçici dosya
+
+Otomatik güvenlik incelemesi `file-store.ts`'te güvensiz geçici dosya buldu: ad tahmin edilebilir
+(`<yol>.<pid>.tmp`) ve `writeFile` varsayılan bayrakla açıyordu — o ada önceden konmuş bir
+dosya/sembolik bağ üzerinden yazılabilir, `0600` yalnız yeni dosyada geçerliydi.
+
+Düzeltme (Codex odaklı incelemesi iki tur):
+- Rastgele ad (`randomBytes(12)`, 96 bit) ve **özel oluşturma** (`open(tmp, "wx", 0o600)` =
+  O_CREAT|O_EXCL): önceden var olan dosya/bağ üzerinden yazılmaz, kayıt `EEXIST` ile reddedilir.
+- **Sahiplik açılışla belirlenir:** yalnız bu kaydın oluşturduğu geçici dosya silinir. (İlk sürüm
+  `EEXIST` sonrasında da siliyordu — başkasına ait dosyayı; Codex S1, düzeltildi.) Yazım tanıtıcı
+  üzerinden yapılır; yarıda kalan yazımda da kendi dosyası temizlenir.
+- Yeni oluşturulan dizin `0700`.
+
+Güvence sınırları (Codex S2):
+- Temizlik **en iyi çabadır**: `rename`/`unlink` reddi veya ani süreç sonu geçici dosya bırakabilir;
+  asıl hata yine çağırana gider, eski kuyruk korunur.
+- `0600`/`0700` POSIX izinleridir ve yalnız **yeni** dosya/dizinde uygulanır; mevcut dizin izinleri
+  düzeltilmez. Windows'ta erişim üst dizinin ACL'ine bağlıdır.
+- Sembolik bağ değerlendirmesi yalnız yazım/`rename` içindir (`rename` hedefteki bağın kendisini
+  değiştirir). `load()` hedef yolu okurken bağı izler; saldırganın değiştirebildiği üst dizin
+  bileşenleri korunmaz. **Store yolu özel bir dizinde olmalı** (README).
+- `fsync` yok: atomik `rename` tam anlık görüntü yayımlar ama güç kesintisine karşı kalıcılık
+  garantisi değildir.
+
+Regresyon: `delivery.test.ts` (eski öngörülebilir ada konmuş dosyaya dokunulmaz; yarıda kalan
+yazımda kendi dosyası silinir, eski görüntü ve sonraki kayıt sağlam), `test/review-temp-security.test.mjs`
+(Codex; `EEXIST`'te başkasının dosyası silinmez). Codex'in kısmi yazım testi `fs.writeFile`'ı
+yamaladığı ve düzeltme artık onu çağırmadığı için `pnpm test`'te atlanır; amacı uyarlanmış testle
+korunur. Sembolik bağ testi Windows'ta (yetki) BLOCKED.

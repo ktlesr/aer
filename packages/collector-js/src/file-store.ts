@@ -3,7 +3,8 @@
 //
 // The file holds what the queue holds: capture-filtered request bodies and their Idempotency-Keys
 // (never the API key). Treat it like the data it contains: keep it on a private path.
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { mkdir, open, readFile, rename, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { QueueState, QueueStore } from "./queue.js";
 
@@ -35,10 +36,27 @@ export function fileQueueStore(path: string): QueueStore {
     save(state: QueueState): Promise<void> {
       const snapshot = JSON.stringify(state);
       const p = chain.then(async () => {
-        await mkdir(dirname(path), { recursive: true });
-        const tmp = `${path}.${process.pid}.tmp`;
-        await writeFile(tmp, snapshot, { mode: 0o600 });
-        await rename(tmp, path);
+        await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+        // Unpredictable name + exclusive create ("wx" = O_CREAT|O_EXCL): a file or symlink planted
+        // at the temp path makes this save fail instead of writing through it, and the 0600 mode
+        // always applies because the file is always new.
+        const tmp = `${path}.${randomBytes(12).toString("hex")}.tmp`;
+        // Ownership is established by the exclusive open itself: only a file THIS save created is
+        // ever removed (EEXIST leaves whatever was there alone; a partial write is still cleaned).
+        let created = false;
+        try {
+          const fh = await open(tmp, "wx", 0o600);
+          created = true;
+          try {
+            await fh.writeFile(snapshot);
+          } finally {
+            await fh.close();
+          }
+          await rename(tmp, path);
+        } catch (err) {
+          if (created) await unlink(tmp).catch(() => undefined); // best effort; the error still propagates
+          throw err;
+        }
       });
       // This save's failure goes to its caller; the chain itself recovers so a later save (after
       // the disk/permission problem is fixed) is actually attempted.
