@@ -18,6 +18,11 @@ offline with [`@ktlsr/aer-verify`](packages/aer-verify) — no network, no AER a
 receipt you kept or a key you trust, a passing check means "internally consistent", not "unaltered
 since sealing": there is no independent external timestamp or seal service yet.
 
+Agents can request a **verified human approval** for an action; only a signed-in user of the
+workspace can approve it in the dashboard, and the agent consumes it with the exact parameters
+right before acting. AER records and checks this, but it does not block an action whose code
+skips the check.
+
 > Not an observability tool. See [`docs/PRODUCT.md`](docs/PRODUCT.md) for positioning.
 
 ## Repo Layout
