@@ -75,3 +75,27 @@ test("a failing redact hook withholds sourced and refs too", async () => {
   assert.equal(sent[0].conversationRef, undefined);
   assert.equal(sent[1].sourced, undefined);
 });
+
+// Independent review (e8ea465) regressions.
+test("failed_closed sends only content-free fields — not even parentRunId", async () => {
+  const sent: Array<Record<string, unknown>> = [];
+  const marker = "aer_" + "1234567890abcdef".repeat(2);
+  const capture: CaptureOptions = { mode: "redacted_content", redact: () => { throw new Error("x"); } };
+  const run = await recorder(capture, sent).startRun({ agentName: "a", parentRunId: marker, riskLevel: "high" });
+  await run.event({ type: "model_call", title: "a", seq: 3, costMicroUsd: 5, sourced: SOURCED });
+  assert.ok(!JSON.stringify(sent).includes(marker));
+  assert.deepEqual(Object.keys(sent[0]).sort(), ["agentName", "capture", "riskLevel"]);
+  assert.deepEqual(Object.keys(sent[1]).sort(), ["capture", "costMicroUsd", "seq", "title", "type"]);
+});
+
+test("redacted_content masks a context entry whose key is secret-named", async () => {
+  const sent: Array<Record<string, unknown>> = [];
+  const run = await recorder({ mode: "redacted_content" }, sent).startRun({ agentName: "a" });
+  await run.event({
+    type: "model_call",
+    title: "a",
+    sourced: { profile: "sourced_assistant", version: 1, context: { used: [{ key: "password", value: "synthetic-pw", origin: "user_stated" }] } },
+  });
+  assert.ok(!JSON.stringify(sent[1]).includes("synthetic-pw"));
+  assert.deepEqual((sent[1].sourced as SourcedEvidence).context!.used![0].value, "[REDACTED_SECRET]");
+});

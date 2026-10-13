@@ -59,6 +59,8 @@ export interface CaptureDeclaration {
 }
 
 export const SECRET_TOKEN = "[REDACTED_SECRET]";
+// Fields that carry no caller content (enums / numbers): the only ones sent when redaction fails.
+const SAFE_ON_FAILURE = ["type", "seq", "riskLevel", "costMicroUsd", "status"];
 // metadata_only is "what happened", never "what was said": strings must look like identifiers
 // (no spaces, ≤64 chars) AND sit under a fixed operational key. An app-chosen key like `prompt`
 // can't widen it — allowing it is the very back door this mode exists to close.
@@ -114,11 +116,15 @@ function mask(value: unknown, isSecret: (k: string) => boolean): unknown {
   if (Array.isArray(value)) return value.map((v) => mask(v, isSecret));
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
+    // Name/value pairs ({key:"password", value}) carry the field name as data — same rule as the server.
+    const label = (value as Record<string, unknown>).key ?? (value as Record<string, unknown>).name;
+    const secretPair = typeof label === "string" && isSecret(label);
     for (const [k, v] of Object.entries(value)) {
       const base = maskString(k);
       let key = base;
       for (let n = 2; Object.hasOwn(out, key); n++) key = `${base}#${n}`;
-      const masked = isSecret(k) && v !== null && v !== undefined && v !== "" ? SECRET_TOKEN : mask(v, isSecret);
+      const secret = isSecret(k) || (secretPair && k === "value");
+      const masked = secret && v !== null && v !== undefined && v !== "" ? SECRET_TOKEN : mask(v, isSecret);
       Object.defineProperty(out, key, { value: masked, enumerable: true, writable: true, configurable: true });
     }
     return out;
@@ -215,15 +221,11 @@ export function applyCapture<T extends CapturePayload>(
     // The hook's own error is not rethrown: its message could quote the content it choked on.
     if (options.onRedactionError === "throw") throw new Error("Client redaction failed; nothing was sent");
     // Fail closed: keep the fact that a step happened, drop everything that could carry content.
-    const withheld = {
-      ...payload,
-      input: undefined,
-      output: undefined,
-      metadata: undefined,
-      sourced: undefined,
-      conversationRef: undefined,
-      turnRef: undefined,
-    } as T;
+    // An allowlist of content-free fields — a new payload field is withheld by default.
+    const raw = payload as Record<string, unknown>;
+    const withheld = Object.fromEntries(
+      SAFE_ON_FAILURE.filter((k) => raw[k] !== undefined).map((k) => [k, raw[k]]),
+    ) as unknown as T;
     if ("title" in payload) withheld.title = failedTitle;
     if ("agentName" in payload) withheld.agentName = failedTitle;
     return { payload: withheld, declaration: { mode: options.mode, policy, status: "failed_closed" } };

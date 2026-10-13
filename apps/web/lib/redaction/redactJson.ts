@@ -105,6 +105,10 @@ function redactValue(
 
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
+    // Name/value pairs carry the field name as DATA: {key:"password", value}, {name:"Authorization",
+    // value} (sourced context, header lists). The pair's `value` is a secret when its name is.
+    const label = (value as Record<string, unknown>).key ?? (value as Record<string, unknown>).name;
+    const secretPair = typeof label === "string" && isSecretKey(label);
     for (const [key, val] of Object.entries(value)) {
       // Object *keys* can be sensitive too (per-email / per-token maps). Redact the key itself;
       // the field path uses the already-redacted key so no raw value leaks into a finding path.
@@ -124,7 +128,10 @@ function redactValue(
       }
       // defineProperty, not assignment: a "__proto__" key from JSON.parse must stay data.
       Object.defineProperty(out, redactedKey, {
-        value: isSecretKey(key) ? redactSecret(val, keyPath, findings) : redactValue(val, keyPath, findings),
+        value:
+          isSecretKey(key) || (secretPair && key === "value")
+            ? redactSecret(val, keyPath, findings)
+            : redactValue(val, keyPath, findings),
         enumerable: true,
         writable: true,
         configurable: true,

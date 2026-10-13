@@ -80,3 +80,26 @@ describe("redaction — object keys", () => {
     expect(src).toEqual(copy);
   });
 });
+
+describe("name/value pairs (review e8ea465)", () => {
+  it("masks `value` when the pair's key/name is secret, keeps others", () => {
+    const { redacted, findings } = redactJson({
+      used: [
+        { key: "password", value: "hunter2-synthetic" },
+        { name: "Authorization", value: "opaque-synthetic" },
+        { key: "ilce", value: "Milas" },
+      ],
+    });
+    expect(redacted).toEqual({
+      used: [
+        { key: "password", value: "[REDACTED_SECRET]" },
+        { name: "Authorization", value: "[REDACTED_SECRET]" },
+        { key: "ilce", value: "Milas" },
+      ],
+    });
+    expect(findings.map((f) => [f.fieldPath, f.findingType, f.originalHash])).toEqual([
+      ["used[0].value", "secret", ""],
+      ["used[1].value", "secret", ""],
+    ]);
+  });
+});
