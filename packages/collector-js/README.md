@@ -228,6 +228,40 @@ recorder.stats();                        // { queued, queuedBytes, delivered, fa
 - **Which to use:** `event()` for anything you must be able to prove (approvals, irreversible
   actions); `enqueue()` for steps where continuing with a delivery warning is acceptable.
 
+### Verified human approval
+
+For actions a person must sign off (refunds, deletions, outbound messages):
+
+```ts
+const approval = await run.requestApproval({
+  action: "refund",
+  params: { orderId: "ord-1001", amountMinor: 4200, currency: "TRY" }, // exact values, see below
+  ttlSeconds: 900, // 30–86400
+  maxUses: 1,      // 1–10
+});
+// A signed-in user of your AER workspace approves or rejects it in the dashboard.
+// Your API key cannot approve.
+const decided = await run.waitForApproval(approval.id, { timeoutMs: 5 * 60_000 });
+
+// Right BEFORE acting, with the same action and parameters:
+await run.consumeApproval(approval.id, { action: "refund", params: { orderId: "ord-1001", amountMinor: 4200, currency: "TRY" } });
+// ...perform the refund only if consumeApproval did not throw...
+await run.reportApprovalOutcome(approval.id, { status: "succeeded", externalRef: "psp-tx-778" });
+```
+
+- `consumeApproval` throws `RecorderError` (status `409`, `message` = reason: `approval_pending`,
+  `_rejected`, `_revoked`, `_expired`, `_used_up`, `_action_mismatch`, `_params_mismatch`).
+  **AER does not block the action** — your code must stop when it throws.
+- The approval is bound to salted hashes of the **real** action name and parameter values, so
+  `params` are sent as given, not through the capture policy. AER stores only a redacted copy.
+  Send identifiers and amounts, not free text. Numbers are compared as JSON doubles: send exact
+  decimals or integers beyond 2^53 as strings (non-finite numbers, such integers and malformed
+  Unicode are refused with 422).
+- Approval events you send yourself (`human_approval_granted` …) are shown as *reported by the agent*;
+  only decisions made in the dashboard are shown as *verified by AER*.
+- The outcome you report is stored and shown as your claim, not verified by AER.
+- Approval calls are not queued; `flush()` first if strict ordering with `enqueue()`d events matters.
+
 ### Idempotency and retries
 
 Each `startRun` / `event` / `complete` call sends an `Idempotency-Key` header, generated once per
@@ -258,7 +292,7 @@ receipt.
 Besides your API key and the run/event payloads you pass in, every request carries two headers:
 
 ```
-x-aer-sdk: collector-js/0.6.0
+x-aer-sdk: collector-js/0.7.0
 idempotency-key: <random UUID, or your idempotencyKey>
 ```
 

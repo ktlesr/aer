@@ -29,7 +29,7 @@ export type EventType =
   | "run_completed";
 
 /** Must match package.json "version" — src/index.test.ts fails if they drift. */
-export const SDK_VERSION = "0.6.0";
+export const SDK_VERSION = "0.7.0";
 
 /** Sent on every request so the server can tell collector-js runs from raw API calls. */
 const SDK_HEADER = `collector-js/${SDK_VERSION}`;
@@ -175,6 +175,41 @@ export interface Receipt {
   signature: { alg: "Ed25519"; key_id: string; value: string } | null;
 }
 
+/** A verified-approval record as AER returns it (Stage 6). */
+export interface Approval {
+  id: string;
+  runId: string;
+  action: string;
+  /** As stored by AER: redacted. */
+  params: unknown;
+  paramsHash: string;
+  status: "pending" | "approved" | "rejected" | "revoked" | "expired" | "used_up";
+  maxUses: number;
+  uses: number;
+  requestedAt: string;
+  expiresAt: string;
+  decidedAt: string | null;
+  /** True once a signed-in user decided it in the AER dashboard. */
+  verified: boolean;
+  outcome: unknown;
+}
+
+export interface ApprovalRequest {
+  /** What will be done, e.g. "refund". Must match exactly at consume time. */
+  action: string;
+  /**
+   * The exact parameters of the action. Sent AS GIVEN (not capture-filtered): the approval is bound
+   * to a salted hash of these real values, so masking would let two different actions share one
+   * approval. AER stores only a redacted copy. Send identifiers and amounts, not free text.
+   */
+  params?: unknown;
+  /** 30–86400 s, default 900. */
+  ttlSeconds?: number;
+  /** 1–10, default 1. */
+  maxUses?: number;
+  idempotencyKey?: string;
+}
+
 export interface CompleteResult {
   receipt: Receipt | null;
 }
@@ -245,6 +280,8 @@ function newIdempotencyKey(): string {
     `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
   );
 }
+
+type Direct = <T>(method: string, path: string, body?: unknown, key?: string) => Promise<T>;
 
 /** Split the optional caller-chosen key off the body (it travels as a header, not content). */
 function withoutKey<T extends { idempotencyKey?: string }>(
@@ -378,7 +415,60 @@ export class AgentRun {
     private readonly capture?: CaptureOptions,
     /** False when lineage refs were sent but the server did not store them (older server). */
     public readonly lineageStored?: boolean,
+    private readonly direct?: Direct,
+    /** Aborted by recorder.shutdown(): ends waitForApproval's poll wait at once. */
+    private readonly stop?: AbortSignal,
   ) {}
+
+  private call<T>(method: string, path: string, body?: unknown, key?: string): Promise<T> {
+    if (!this.direct) throw new RecorderError("not_supported", "Approvals need a recorder-created run", 0);
+    return this.direct<T>(method, path, body, key);
+  }
+
+  /**
+   * Ask for a verified human approval of one action on this run. Returns it `pending`: only a
+   * signed-in user of your AER workspace can approve it (dashboard) — your API key cannot.
+   * Not queued: if you also enqueue() events and need strict ordering, flush() first.
+   */
+  async requestApproval(input: ApprovalRequest): Promise<Approval> {
+    const [body, key] = withoutKey(input);
+    const res = await this.call<{ approval: Approval }>("POST", `/api/v1/runs/${this.id}/approvals`, body, key);
+    return res.approval;
+  }
+
+  async getApproval(id: string): Promise<Approval> {
+    return (await this.call<{ approval: Approval }>("GET", `/api/v1/approvals/${encodeURIComponent(id)}`)).approval;
+  }
+
+  /** Poll until the approval is no longer pending, or `timeoutMs` passes (then returns it pending). */
+  async waitForApproval(id: string, opts: { timeoutMs?: number; pollMs?: number } = {}): Promise<Approval> {
+    const deadline = Date.now() + (opts.timeoutMs ?? 300_000);
+    const poll = Math.max(500, opts.pollMs ?? 2_000);
+    for (;;) {
+      const a = await this.getApproval(id);
+      if (a.status !== "pending" || Date.now() + poll > deadline) return a;
+      await sleep(poll, this.stop); // shutdown clears the timer; the next getApproval then rejects (recorder_closed)
+    }
+  }
+
+  /**
+   * Call right BEFORE acting, with the same action and parameters. Resolves only if a signed-in
+   * user approved exactly this and it is unexpired and unused; otherwise throws RecorderError
+   * (status 409, message = reason: approval_pending / _rejected / _revoked / _expired / _used_up /
+   * _action_mismatch / _params_mismatch). AER cannot stop your action — you must not act on a throw.
+   */
+  async consumeApproval(id: string, use: { action: string; params?: unknown; idempotencyKey?: string }): Promise<Approval> {
+    const [body, key] = withoutKey(use);
+    return (await this.call<{ approval: Approval }>("POST", `/api/v1/approvals/${encodeURIComponent(id)}/consume`, body, key)).approval;
+  }
+
+  /** What the external system did. Stored and shown as YOUR claim (AER does not verify it). Once. */
+  async reportApprovalOutcome(
+    id: string,
+    outcome: { status: "succeeded" | "failed"; externalRef?: string; receiptHash?: string },
+  ): Promise<Approval> {
+    return (await this.call<{ approval: Approval }>("POST", `/api/v1/approvals/${encodeURIComponent(id)}/outcome`, outcome)).approval;
+  }
 
   private item(kind: QueueItem["kind"], path: string, body: unknown, key: string | undefined, background: boolean): QueueItem {
     return {
@@ -459,6 +549,12 @@ export class AgentEvidenceRecorder {
     );
   }
 
+  /** Requests that need an immediate answer (approvals): not queued, but refused once shut down. */
+  private readonly direct: Direct = <T>(method: string, path: string, body?: unknown, key?: string) => {
+    if (this.queue.isClosed) return Promise.reject(new RecorderError("recorder_closed", "Recorder is shut down; nothing was sent", 0));
+    return this.client.request<T>(method, path, body, key, this.queue.stopSignal);
+  };
+
   /** Delivery counters: queued items/bytes, delivered, failed, retries. */
   stats(): QueueStats {
     return this.queue.stats();
@@ -498,6 +594,6 @@ export class AgentEvidenceRecorder {
     const sent = body as Record<string, unknown>;
     const refs = (["conversationRef", "turnRef", "parentRunId"] as const).filter((k) => sent[k] !== undefined);
     const lineageStored = refs.length ? refs.every((k) => res.run[k] === sent[k]) : undefined;
-    return new AgentRun(this.queue, res.run.id, this.capture, lineageStored);
+    return new AgentRun(this.queue, res.run.id, this.capture, lineageStored, this.direct, this.queue.stopSignal);
   }
 }

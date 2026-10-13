@@ -41,7 +41,7 @@ test("redacted_content: no sensitive fixture reaches fetch; source object untouc
   const evBody = JSON.parse(sent[1]);
   assert.equal(evBody.output.sources[0].score, 0.0000246913578);
   assert.equal(evBody.input.user.password, "[REDACTED_SECRET]");
-  assert.deepEqual(evBody.capture, { mode: "redacted_content", policy: "collector-js/0.6.0:redacted_content", status: "applied" });
+  assert.deepEqual(evBody.capture, { mode: "redacted_content", policy: "collector-js/0.7.0:redacted_content", status: "applied" });
 });
 
 test("allowlist: only listed paths leave the process; unknown fields are dropped", async () => {
