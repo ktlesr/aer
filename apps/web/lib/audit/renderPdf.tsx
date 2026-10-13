@@ -145,8 +145,8 @@ function Cell({ label, children }: { label: string; children: React.ReactNode })
 function chainVerdict(packet: AuditPacket): { label: string; color: string } {
   const v = verifyChain(packetToChainLinks(packet), packetSeal(packet), packet.run.id);
   if (v.ok) {
-    return packet.seal === null
-      ? { label: "Sealing pending", color: MUTED }
+    return v.status === "consistent_unsealed"
+      ? { label: `Consistent so far · not sealed · ${v.checkedCount} events`, color: MUTED }
       : { label: `Chain verified · ${v.checkedCount} events`, color: SEAL };
   }
   if (v.status === "legacy") return { label: "Legacy · unchained", color: MUTED };
@@ -191,6 +191,8 @@ function AuditDocument({ packet }: { packet: AuditPacket }) {
           <View style={s.seal}>
             <Text style={[s.sealHashLabel, { color: chain.color }]}>Chain verification</Text>
             <Text style={[s.sealHash, { color: chain.color, marginBottom: 8 }]}>{chain.label}</Text>
+            <Text style={s.sealHashLabel}>Run manifest (frozen at seal)</Text>
+            <Text style={[s.sealHash, { marginBottom: 8 }]}>{packet.manifest_hash ?? "not frozen"}</Text>
             <Text style={s.sealHashLabel}>Content hash</Text>
             <Text style={s.sealHash}>{exp.content_hash}</Text>
             <View style={s.sealMeta}>
@@ -263,7 +265,7 @@ function AuditDocument({ packet }: { packet: AuditPacket }) {
         {/* Footer on every page */}
         <View style={s.footer} fixed>
           <Text style={s.footerText}>
-            Redacted view · raw values never stored · verify by re-hashing the JSON packet
+            Human-readable view, not the evidence · verify the JSON packet offline with aer-verify
           </Text>
           <Text
             style={s.footerText}

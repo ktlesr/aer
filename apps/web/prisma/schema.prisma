@@ -169,6 +169,13 @@ model AgentRun {
   conversationRef String?
   turnRef         String?
   parentRunId     String?
+  // Run manifest (Stage 4), frozen at complete together with the seal: binds run context and each
+  // event's out-of-chain fields to the chain head. Null while running and for runs sealed before
+  // manifests existed. receipt = the statement (+ optional Ed25519 signature) returned to the
+  // client at complete; contains hashes and ids only.
+  manifestVersion String?
+  manifestHash    String?
+  receipt         Json?
 
   organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   project      Project            @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)

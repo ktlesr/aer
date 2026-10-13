@@ -111,7 +111,7 @@ describe("sourced assistant — follow-up question", () => {
     await completeRun(req("POST", `/api/v1/runs/${turn2}/complete`, { token: KEY, body: { status: "completed" } }), ctx({ run_id: turn2 }));
 
     const p = await packetOf(turn2);
-    expect(p.schema_version).toBe("1.3");
+    expect(p.schema_version).toBe("2.0");
     expect(p.run.links).toEqual({
       conversationRef: "conv-synth-1",
       turnRef: "t2",

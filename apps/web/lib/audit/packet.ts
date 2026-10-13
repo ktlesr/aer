@@ -1,5 +1,14 @@
 import { createHash } from "node:crypto";
-import { genesisHash, type ChainLink } from "@ktlsr/evidence-chain";
+import {
+  CANONICALIZATION,
+  CHAIN,
+  CONTENT_HASH,
+  canonicalize,
+  genesisHash,
+  packetChainLinks,
+  type ChainLink,
+  type Receipt,
+} from "@ktlsr/evidence-chain";
 import type {
   AgentEvent,
   AgentRun,
@@ -25,10 +34,40 @@ export interface PacketCapture {
   client_declared: ({ layer: "client" } & Record<string, unknown>) | null;
 }
 
+/**
+ * What each integrity mechanism covers — shipped in the packet so a reader never has to assume.
+ * content_hash alone is NOT tamper evidence: whoever edits the file can recompute it.
+ */
+export const PACKET_COVERAGE = {
+  event_chain: {
+    version: CHAIN,
+    covers: "per event: seq, type, title, occurredAt, inputRedacted, outputRedacted, riskLevel, costMicroUsd, metadata, findings; order via prevHash; seal = chain head",
+  },
+  run_manifest: {
+    covers:
+      "run: id, tenant, agentName, status, riskLevel, startedAt, endedAt, costMicroUsd, server policy, client capture claim, environment, conversationRef, turnRef, parentRunId; per event: chain hash, server policy, client capture claim, sourced block (by digest); chain head and event count",
+    frozen: "at seal (complete); absent for runs sealed before manifests existed",
+  },
+  content_hash: { version: CONTENT_HASH, covers: "the whole packet except export.content_hash" },
+  receipt: "commits to manifest_hash; trusted only if you kept it at seal time or verify its signature with a key you obtained out of band",
+  not_integrity_bound: [
+    "run.durationMs, run.eventCount, run.redactionCount",
+    "run.links.parentRun.status/agentName (resolved at export)",
+    "events[].sourced.not_recorded (derived at export)",
+    "redaction_findings (copy of events[].findings)",
+    "export.generatedAt",
+  ],
+} as const;
+
 export interface AuditPacket {
   schema_version: string;
+  versions: { canonicalization: string; chain: string; manifest: string | null; content_hash: string };
+  coverage: typeof PACKET_COVERAGE;
   run: {
     id: string;
+    organizationId: string;
+    projectId: string;
+    environment: string | null;
     agentName: string;
     status: string;
     riskLevel: string;
@@ -66,6 +105,10 @@ export interface AuditPacket {
   // Chain anchor — lets a third party re-verify the packet offline (see docs/EVIDENCE_INTEGRITY.md).
   chain: { algorithm: "sha256"; genesis: string };
   seal: string | null;
+  // Run manifest hash frozen at seal (sha256:…); null while running / for pre-manifest runs.
+  manifest_hash: string | null;
+  // The receipt AER returned at seal. A copy inside the packet proves nothing by itself.
+  receipt: Receipt | null;
   export: {
     type: "json";
     generatedAt: string;
@@ -151,10 +194,22 @@ export function buildAuditPacket(
 
   const base: Omit<AuditPacket, "export"> & { export: Omit<AuditPacket["export"], "content_hash"> } = {
     // 1.2 = 1.1 + run/event `capture`; 1.3 = 1.2 + run `links` + event `sourced`.
-    // Chain hashing is unchanged, so 1.1/1.2 packets verify as before.
-    schema_version: "1.3",
+    // 2.0 = 1.3 + tenant/environment, run manifest hash, receipt, versions, coverage, and a
+    // canonical content_hash (1.x hashed emission order, which JSONB storage does not keep).
+    // Event chain hashing is unchanged, so 1.x packets verify as before.
+    schema_version: "2.0",
+    versions: {
+      canonicalization: CANONICALIZATION,
+      chain: CHAIN,
+      manifest: run.manifestVersion,
+      content_hash: CONTENT_HASH,
+    },
+    coverage: PACKET_COVERAGE,
     run: {
       id: run.id,
+      organizationId: run.organizationId,
+      projectId: run.projectId,
+      environment: run.environment,
       agentName: run.agentName,
       status: run.status,
       riskLevel: run.riskLevel,
@@ -186,15 +241,16 @@ export function buildAuditPacket(
     redaction_findings: findings.map(toPacketFinding),
     chain: { algorithm: "sha256", genesis: withPrefix(genesisHash(run.id)) },
     seal: run.seal ? withPrefix(run.seal) : null,
+    manifest_hash: run.manifestHash ? withPrefix(run.manifestHash) : null,
+    receipt: (run.receipt as Receipt | null) ?? null,
     export: {
       type: "json",
       generatedAt: generatedAt.toISOString(),
     },
   };
 
-  const contentHash = createHash("sha256")
-    .update(JSON.stringify(base))
-    .digest("hex");
+  // Canonical bytes (sorted keys): reproducible after JSONB storage reorders the stored packet.
+  const contentHash = createHash("sha256").update(canonicalize(base)).digest("hex");
 
   return {
     ...base,
@@ -208,25 +264,8 @@ export function buildAuditPacket(
  * `verifyChain(links, packetSeal(packet), packet.run.id)`.
  */
 export function packetToChainLinks(packet: AuditPacket): ChainLink[] {
-  return packet.events.map((e) => ({
-    seq: e.seq,
-    type: e.type,
-    title: e.title,
-    occurredAt: e.occurredAt,
-    inputRedacted: e.inputRedacted ?? null,
-    outputRedacted: e.outputRedacted ?? null,
-    riskLevel: e.riskLevel ?? null,
-    costMicroUsd: e.costMicroUsd ?? null,
-    metadata: e.metadata ?? null,
-    findings: e.findings.map((f) => ({
-      findingType: f.findingType,
-      severity: f.severity,
-      fieldPath: f.fieldPath,
-      originalHash: f.originalHash ? stripPrefix(f.originalHash) : "",
-    })),
-    hash: e.hash ? stripPrefix(e.hash) : "",
-    prevHash: e.prevHash ? stripPrefix(e.prevHash) : "",
-  }));
+  // Single implementation, shared with the offline verifier (aer-verify).
+  return packetChainLinks(packet as unknown as Record<string, unknown>);
 }
 
 /** The packet seal as raw hex for verifyChain (null while the run was still running). */

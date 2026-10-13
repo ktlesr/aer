@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { unrepresentableKeyPath } from "@ktlsr/evidence-chain";
 import { Prisma } from "@/app/generated/prisma/client";
 import type { AgentEvent, AgentRun, AuditExport } from "@/app/generated/prisma/client";
 import { redactJson, type RedactionFinding } from "@/lib/redaction";
@@ -7,11 +8,18 @@ import type { AuthContext } from "./auth";
 
 /** Parse a JSON body, mapping malformed JSON to a 422 instead of a 500. */
 export async function readJson(request: Request): Promise<unknown> {
+  let body: unknown;
   try {
-    return await request.json();
+    body = await request.json();
   } catch {
     throw new ApiError("validation_error", "Request body must be valid JSON", 422);
   }
+  // aer-canonical/1 cannot represent an own "__proto__" key: content under it would be stored but
+  // covered by no hash. Refused here, at the single entry point, instead of silently dropped.
+  if (unrepresentableKeyPath(body)) {
+    throw new ApiError("validation_error", 'Keys named "__proto__" are not accepted', 422);
+  }
+  return body;
 }
 
 /** `x-aer-sdk: <name>/<semver>`, e.g. `collector-js/0.2.0`. Bounded so it can't carry a payload. */
