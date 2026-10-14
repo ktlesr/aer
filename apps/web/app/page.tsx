@@ -5,6 +5,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 import { SealMark } from "@/components/brand";
 import { HomeDashboard } from "@/components/home-dashboard";
 import { SiteFooter } from "@/components/site-footer";
+import { WhatsNew } from "@/components/whats-new";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/site";
 import { auth } from "@/auth";
 
@@ -210,7 +211,9 @@ export default async function Home() {
         </dl>
       </section>
 
-      <p className="mt-4 text-xs text-muted-foreground">
+      <WhatsNew />
+
+      <p className="mt-8 text-xs text-muted-foreground">
         Stored <span className="text-foreground">redacted</span> — raw sensitive values are never
         persisted. <span className="font-mono">Evidence packets are hash-anchored.</span>
       </p>

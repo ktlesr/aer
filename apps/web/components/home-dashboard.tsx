@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, KeyRound } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { SdkUsage } from "@/components/sdk-usage";
+import { WhatsNew } from "@/components/whats-new";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { SITE_URL } from "@/lib/site";
@@ -48,7 +49,11 @@ export async function HomeDashboard() {
           </div>
         </header>
 
-        <div className="animate-rise border-t border-border/60 pt-8" style={{ animationDelay: "70ms" }}>
+        <div className="animate-rise" style={{ animationDelay: "70ms" }}>
+          <WhatsNew />
+        </div>
+
+        <div className="animate-rise mt-10 border-t border-border/60 pt-8" style={{ animationDelay: "120ms" }}>
           <SdkUsage baseUrl={SITE_URL} />
         </div>
       </main>
