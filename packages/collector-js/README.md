@@ -5,7 +5,7 @@ Collector SDK for **[Agent Evidence Recorder](https://aer.ktlsr.com)** — recor
 - Small and dependency-light — a thin client over `fetch` (Node 18+).
 - **Server-side redaction on every write**: the server masks the sensitive values it can recognise (emails, phones, cards, ids, keys/tokens, secret-named fields) before storage. Recognition is pattern- and field-name-based, **not universal**: names, free-text passwords and trade secrets in prose are not detected. Use a client-side `capture` policy (below) to keep such content from being sent at all.
 - The SDK **never logs** your API key or payloads.
-- Built-in timeout (AbortController, covering the response body too) and retry on network/5xx errors (never on 4xx).
+- Built-in timeout (AbortController, covering the response body too) and bounded retries on network errors, 408, 429 (honouring `Retry-After`) and 5xx — never on other 4xx.
 - Safe retries: every call carries one `Idempotency-Key`, reused across its retries, so a retry after a lost response never records twice.
 
 ## Quick start
@@ -89,7 +89,7 @@ await run.complete({ status: "completed" });
 | `apiKey`     | `string`   | —                       | Sent as `Authorization: Bearer <apiKey>`. Never logged.      |
 | `environment` | `string`  | —                       | Deployment label (`production`, `staging`…) recorded on every run. 1–40 chars: letters, digits, `.` `_` `-`. |
 | `timeoutMs`  | `number`   | `10000`                 | Per-request timeout via `AbortController`.                   |
-| `maxRetries` | `number`   | `2`                     | Retries on network error / 5xx. Never retries 4xx.           |
+| `maxRetries` | `number`   | `2`                     | Retries on network error, 408, 429 and 5xx; no other 4xx.    |
 | `fetchImpl`  | `typeof fetch` | global `fetch`      | Override for testing.                                         |
 | `capture`    | `CaptureOptions` | — (`full`)        | Client-side capture policy, applied before anything is sent. See below. |
 
