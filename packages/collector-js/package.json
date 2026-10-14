@@ -1,6 +1,6 @@
 {
   "name": "@ktlsr/collector-js",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Collector SDK for Agent Evidence Recorder — record AI agent runs as audit-ready, redacted evidence over the v1 API.",
   "license": "MIT",
   "author": "ktlesr",

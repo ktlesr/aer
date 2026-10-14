@@ -29,7 +29,7 @@ export type EventType =
   | "run_completed";
 
 /** Must match package.json "version" — src/index.test.ts fails if they drift. */
-export const SDK_VERSION = "0.7.0";
+export const SDK_VERSION = "0.7.1";
 
 /** Sent on every request so the server can tell collector-js runs from raw API calls. */
 const SDK_HEADER = `collector-js/${SDK_VERSION}`;

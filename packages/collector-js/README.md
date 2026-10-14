@@ -25,6 +25,26 @@ Recorded runs appear on your dashboard at [aer.ktlsr.com/runs](https://aer.ktlsr
 
 **Self-hosting:** AER is open source. Run your own instance from [the repository](https://github.com/ktlesr/aer) and set `baseUrl` to it instead.
 
+## Upgrading
+
+```bash
+npm install @ktlsr/collector-js@latest
+```
+
+No code change is needed: the hosted AER accepts every earlier SDK version, and the calls you
+already make (`startRun`, `event`, `complete`) keep their signatures. What changes when you move
+to the latest version:
+
+| From | What you get |
+| --- | --- |
+| ≤ 0.2 | Every call carries an `Idempotency-Key`, so a retry after a lost response never records twice. An explicit `seq` lower than the run's last one is now refused (`409`) instead of silently breaking the chain. |
+| 0.3 – 0.4 | `run.complete()` returns `{ receipt }`. Keep it to verify an exported packet later with [`@ktlsr/aer-verify`](https://www.npmjs.com/package/@ktlsr/aer-verify). |
+| 0.5 | `429` (honouring `Retry-After`) and `408` are retried. New, all optional: `run.enqueue()`, `recorder.flush()` / `shutdown()` / `stats()`, and a file store that keeps queued events across restarts. Call `await recorder.shutdown()` before your process exits. |
+| 0.6 | Verified human approval: `requestApproval`, `waitForApproval`, `consumeApproval`, `reportApprovalOutcome`. |
+
+Runs sealed before receipts existed still verify, as `verified_partial` (their manifest cannot be
+reconstructed after the fact).
+
 ## Usage
 
 ```ts
@@ -292,7 +312,7 @@ receipt.
 Besides your API key and the run/event payloads you pass in, every request carries two headers:
 
 ```
-x-aer-sdk: collector-js/0.7.0
+x-aer-sdk: collector-js/0.7.1
 idempotency-key: <random UUID, or your idempotencyKey>
 ```
 
