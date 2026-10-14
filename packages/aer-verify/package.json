@@ -1,7 +1,21 @@
 {
   "name": "@ktlsr/aer-verify",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Offline verifier for Agent Evidence Recorder audit packets: chain, manifest, content hash, seal, receipt and signature — no network, no AER account.",
+  "keywords": [
+    "agent-evidence-recorder",
+    "aer",
+    "audit",
+    "evidence",
+    "verify",
+    "verification",
+    "ai-agents",
+    "ed25519",
+    "receipt",
+    "hash-chain",
+    "tamper-evident",
+    "cli"
+  ],
   "license": "MIT",
   "author": "ktlesr",
   "type": "commonjs",
