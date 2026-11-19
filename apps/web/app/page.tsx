@@ -213,6 +213,24 @@ export default async function Home() {
 
       <WhatsNew />
 
+      {/* PeerPush listing badge. Hotlinked on purpose (their embed); proxy.ts allows the host in img-src. */}
+      <a
+        href="https://peerpush.com/p/agent-evidence-recorder"
+        target="_blank"
+        rel="noopener"
+        className="mt-10 inline-flex w-fit rounded-lg outline-none transition-opacity hover:opacity-90 focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="https://peerpush.com/p/agent-evidence-recorder/badge.png"
+          alt="Agent Evidence Recorder on PeerPush"
+          width={230}
+          height={65}
+          loading="lazy"
+          className="h-auto w-[230px]"
+        />
+      </a>
+
       <p className="mt-8 text-xs text-muted-foreground">
         Stored <span className="text-foreground">redacted</span> — raw sensitive values are never
         persisted. <span className="font-mono">Evidence packets are hash-anchored.</span>

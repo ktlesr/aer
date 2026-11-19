@@ -23,7 +23,8 @@ export function proxy(request: NextRequest) {
     "default-src 'self'",
     `script-src ${scriptSrc}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    // peerpush.com: the listing badge on the landing page is hotlinked from their CDN.
+    "img-src 'self' data: blob: https://peerpush.com",
     "font-src 'self' data:",
     "connect-src 'self'",
     "frame-ancestors 'none'",
